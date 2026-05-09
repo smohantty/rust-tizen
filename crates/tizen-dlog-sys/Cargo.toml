@@ -1,0 +1,18 @@
+[package]
+name = "tizen-dlog-sys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Raw FFI bindings to Tizen's libdlog"
+categories = ["external-ffi-bindings", "no-std"]
+keywords = ["tizen", "dlog", "logging", "ffi", "bindings"]
+readme = "README.md"
+
+[lib]
+
+[lints]
+workspace = true
