@@ -34,10 +34,16 @@ pub enum log_id_t {
     LOG_ID_SYSLOG = 5,
 }
 
-// Dynamically link `libdlog.so` only when targeting Tizen. On non-Tizen hosts the
-// symbols stay unresolved in the rlib; final link only fails if a binary actually
-// calls them, so `cargo check` / `cargo test --lib` still work off-device.
-#[cfg_attr(target_vendor = "tizen", link(name = "dlog", kind = "dylib"))]
+// Dynamically link `libdlog.so` when targeting Tizen. Activation paths:
+//   * `--cfg tizen` — the path used by `cargo-tizen`, which sets it via RUSTFLAGS,
+//   * `feature = "tizen"` — explicit opt-in for users not going through cargo-tizen.
+// rustc forbids overriding the built-in `target_vendor` cfg via `--cfg`
+// (`explicit_builtin_cfgs_in_flags` lint, hard error), so a free-form custom cfg
+// is the only way for build tools to signal "this build targets Tizen".
+//
+// On non-Tizen builds neither activation fires, the symbols stay unresolved in
+// the rlib, and `cargo check` / `cargo test --lib` still work off-device.
+#[cfg_attr(any(tizen, feature = "tizen"), link(name = "dlog", kind = "dylib"))]
 extern "C" {
     pub fn dlog_print(prio: log_priority, tag: *const c_char, fmt: *const c_char, ...) -> c_int;
 

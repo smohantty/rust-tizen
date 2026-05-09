@@ -21,6 +21,12 @@ default = []
 # route to dlogutil. See `tizen-dlog` for the full API.
 dlog = ["dep:tizen-dlog"]
 
+# Forwarding feature — enables the `tizen` linkage flag on every sub-crate
+# that's currently active. Most users won't need this: `cargo-tizen` sets
+# `--cfg tizen` automatically. Use it only if you cross-compile through
+# plain `cargo build` and want explicit feature-based activation.
+tizen = ["tizen-dlog?/tizen"]
+
 # (Planned) tizen-app: app lifecycle, intents, app_control events.
 # app = ["dep:tizen-app"]
 

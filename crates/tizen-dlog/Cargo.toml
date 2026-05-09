@@ -12,6 +12,12 @@ categories = ["development-tools::debugging", "api-bindings"]
 keywords = ["tizen", "dlog", "logging", "log"]
 readme = "README.md"
 
+[features]
+default = []
+# Forwarding feature — enables `tizen-dlog-sys/tizen` so libdlog gets linked
+# even when not building through `cargo-tizen`. See that crate for context.
+tizen = ["tizen-dlog-sys/tizen"]
+
 [dependencies]
 log = { workspace = true }
 tizen-dlog-sys = { workspace = true }

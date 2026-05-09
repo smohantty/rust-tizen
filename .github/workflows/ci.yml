@@ -35,6 +35,9 @@ jobs:
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@v2
 
+      # Default features only. The `tizen` feature on tizen-dlog{,-sys} flips on
+      # `link(name = "dlog")`, which requires libdlog.so at link time — we don't
+      # have that on GitHub-hosted runners, so we don't enable it here.
       - name: cargo build
         run: cargo build --workspace --all-targets
 

@@ -28,13 +28,24 @@ extern "C" {
 
 ## Linking
 
-When the cargo target triple has `target_vendor = "tizen"` (e.g. `armv7l-tizen-linux-gnueabi`,
-`aarch64-tizen-linux-gnu`), this crate dynamically links `libdlog.so`. On other
-targets the FFI declarations exist but the symbols stay unresolved — you can
-`cargo check` and run host-side unit tests, but a binary that actually calls
-into dlog will fail to link off-device.
+This crate dynamically links `libdlog.so` when **either** activation fires:
 
-See [`docs/tizen-target-setup.md`](../../docs/tizen-target-setup.md) for sysroot setup.
+- `--cfg tizen` is set (the path used by [`cargo-tizen`](https://github.com/smohantty/cargo-tizen),
+  which injects it via `RUSTFLAGS` for every `cargo tizen build`), **or**
+- the `tizen` cargo feature is enabled (manual opt-in for users not going
+  through cargo-tizen).
+
+On non-Tizen builds neither activates and the FFI declarations stay unresolved
+in the rlib — you can run `cargo check` and host-side unit tests fine. A binary
+that actually calls into dlog will fail to link off-device, which is correct.
+
+rustc forbids overriding the built-in `target_vendor` cfg via `--cfg`
+(`explicit_builtin_cfgs_in_flags` hard error), so a free-form custom cfg is
+the only way for build tooling to signal "this build targets Tizen" without
+forcing a custom target JSON + nightly Rust.
+
+See [`docs/tizen-target-setup.md`](../../docs/tizen-target-setup.md) for the
+full activation matrix.
 
 ## License
 

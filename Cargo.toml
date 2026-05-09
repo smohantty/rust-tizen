@@ -16,12 +16,14 @@ log = { version = "0.4", default-features = false, features = ["std"] }
 tizen-dlog-sys = { version = "0.1.0", path = "crates/tizen-dlog-sys" }
 tizen-dlog = { version = "0.1.0", path = "crates/tizen-dlog" }
 
-# Register `target_vendor = "tizen"` as an expected cfg value. Tizen target triples
-# (e.g. armv7l-tizen-linux-gnueabi) put `tizen` in the vendor field, but it isn't
-# in rustc's built-in vendor list, so this silences `unexpected_cfgs` warnings.
+# Register the custom `tizen` cfg as an expected name. Set by `cargo-tizen`
+# via `--cfg tizen` in RUSTFLAGS to indicate "this build targets a Tizen
+# device", activating native-library linkage in the `-sys` crates. The
+# escape-hatch `feature = "tizen"` on individual crates does the same thing
+# without needing the cfg flag.
 [workspace.lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ['cfg(target_vendor, values("tizen"))']
+check-cfg = ['cfg(tizen)']
 
 # Optimised release profile for on-device binaries. Override per-crate with
 # `[profile.release]` if a specific binding needs different settings.

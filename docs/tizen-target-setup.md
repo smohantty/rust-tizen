@@ -1,45 +1,127 @@
 # Tizen target setup
 
-This guide covers configuring `rustc` + `cargo` to cross-compile Rust code for
-a Tizen device. The setup is one-time per build machine.
+This guide covers cross-compiling Rust code for a Tizen device. The
+**recommended path is [`cargo-tizen`](https://github.com/smohantty/cargo-tizen)** —
+it manages the sysroot, linker, packaging (RPM/TPK), and device install with one
+command. Manual setup is also documented below for users who can't use cargo-tizen.
 
-## Prerequisites
+## How rust-tizen knows it's targeting Tizen
 
-- A Tizen sysroot (rootstrap). Two common sources:
-  - **Tizen Studio**: Install from <https://developer.tizen.org/development/tizen-studio/download>.
-    Sysroots land under `~/tizen-studio/platforms/tizen-X.Y/tizen/rootstraps/`.
-  - **GBS**: `sudo gbs createrepo` then `gbs build --rootstrap` to build one locally.
-- A cross GCC toolchain. Tizen Studio ships these under
-  `~/tizen-studio/tools/arm-linux-gnueabi-gcc-X.Y/` and equivalents for aarch64.
-- (For deploying) `sdb` (Smart Development Bridge) for pushing binaries to a device.
+The `tizen-*-sys` crates include link directives gated on:
 
-## Adding a Rust target
+```rust
+#[cfg_attr(any(tizen, feature = "tizen"), link(name = "dlog", kind = "dylib"))]
+```
 
-Tizen target triples are not built into rustup by default. Two options:
+`tizen` here is a **custom free-form cfg flag**, not the built-in `target_vendor`.
+rustc forbids overriding `target_vendor` via `--cfg` (`explicit_builtin_cfgs_in_flags`
+hard error), so a custom cfg is the only way for build tooling to signal "this
+build targets Tizen" without forcing users onto a custom target JSON + nightly.
 
-### Option A: Use the closest built-in target
+There are two activation paths:
 
-For most cases, a generic Linux ARM target works fine because the vendor field
-isn't load-bearing for most code:
+| Path | How `tizen` cfg is set | When to use |
+|---|---|---|
+| **`cargo-tizen`** (recommended) | Tool injects `--cfg tizen` via `RUSTFLAGS` automatically | Any normal build |
+| **Cargo feature `tizen`** | User adds `features = ["tizen"]` to their dep | Manual cross-compile without cargo-tizen |
+
+## Path 1: Build with cargo-tizen (recommended)
+
+Install:
 
 ```sh
-rustup target add armv7-unknown-linux-gnueabihf   # 32-bit ARM hard-float
-rustup target add aarch64-unknown-linux-gnu       # 64-bit ARM
+cargo install cargo-tizen   # or: cargo install --git https://github.com/smohantty/cargo-tizen
+cargo tizen doctor          # verify SDK / sysroot
 ```
 
-The `target_vendor = "tizen"` cfg won't fire on these targets, so the
-`#[cfg_attr(target_vendor = "tizen", link(...))]` directive in `tizen-*-sys`
-crates won't request libdlog automatically. You'll need to add the link
-directive yourself in your project's `.cargo/config.toml`:
+In your project's `Cargo.toml`:
 
 ```toml
-[target.armv7-unknown-linux-gnueabihf]
-rustflags = ["-C", "link-arg=-ldlog"]
+[dependencies]
+tizen = { version = "0.1", features = ["dlog"] }
+log = "0.4"
 ```
 
-### Option B: Use a custom Tizen target JSON (recommended)
+Build, package, and install:
 
-Save the following as `armv7l-tizen-linux-gnueabi.json` somewhere convenient:
+```sh
+cargo tizen build   -A armv7l --release
+cargo tizen tpk     -A armv7l --release
+cargo tizen install -A armv7l --release
+```
+
+cargo-tizen sets `--cfg tizen` for you, so the link directive activates and
+`libdlog.so` gets linked from the rootstrap. No extra config needed in your
+`Cargo.toml` or `.cargo/config.toml`.
+
+## Path 2: Manual cross-compile (no cargo-tizen)
+
+If you can't use cargo-tizen — for instance in a constrained CI environment —
+you have two sub-options:
+
+### 2a: Enable the `tizen` cargo feature
+
+Add `features = ["tizen"]` to your dependency on `tizen-dlog` (or on the
+umbrella `tizen` crate):
+
+```toml
+[dependencies]
+tizen-dlog = { version = "0.1", features = ["tizen"] }
+log = "0.4"
+```
+
+Then configure linker/sysroot in your `.cargo/config.toml`:
+
+```toml
+[target.armv7-unknown-linux-gnueabi]
+linker = "/path/to/tizen-studio/tools/arm-linux-gnueabi-gcc-9.2/bin/arm-linux-gnueabi-gcc"
+rustflags = [
+    "-C", "link-arg=--sysroot=/path/to/tizen-rootstrap",
+    "-L", "/path/to/tizen-rootstrap/usr/lib",
+]
+
+[target.aarch64-unknown-linux-gnu]
+linker = "/path/to/tizen-studio/tools/aarch64-linux-gnu-gcc-9.2/bin/aarch64-linux-gnu-gcc"
+rustflags = [
+    "-C", "link-arg=--sysroot=/path/to/tizen-rootstrap-64",
+    "-L", "/path/to/tizen-rootstrap-64/usr/lib",
+]
+```
+
+Build:
+
+```sh
+rustup target add armv7-unknown-linux-gnueabi
+cargo build --release --target armv7-unknown-linux-gnueabi
+```
+
+### 2b: Set `--cfg tizen` yourself via RUSTFLAGS
+
+Equivalent to 2a but uses the cfg flag directly instead of the cargo feature:
+
+```toml
+[target.armv7-unknown-linux-gnueabi]
+linker = "..."
+rustflags = [
+    "--cfg", "tizen",
+    "-C", "link-arg=--sysroot=...",
+    "-L", "/path/to/tizen-rootstrap/usr/lib",
+]
+```
+
+Then:
+
+```sh
+cargo build --release --target armv7-unknown-linux-gnueabi
+```
+
+Pick whichever you prefer — they activate the same code path.
+
+## Path 3: Custom target JSON (advanced, nightly only)
+
+If you want the *real* `target_vendor = "tizen"` (e.g. to share build
+infrastructure with C/C++ Tizen projects that already key on `tizen-linux-gnueabi`
+triples), you can write a custom target spec:
 
 ```json
 {
@@ -57,53 +139,20 @@ Save the following as `armv7l-tizen-linux-gnueabi.json` somewhere convenient:
 }
 ```
 
-Then build with:
+But: rustup ships no precompiled std for this triple, so you'd need
+`-Z build-std` (nightly only). For most users, paths 1 and 2 are simpler.
 
-```sh
-cargo +nightly build -Z build-std=std,panic_abort \
-    --target ./armv7l-tizen-linux-gnueabi.json
-```
-
-This is the only way to get `target_vendor = "tizen"` to fire, which means the
-auto-link directives in `tizen-*-sys` crates will work without manual config.
-Requires nightly Rust for `-Z build-std`.
-
-## `.cargo/config.toml`
-
-Configure the linker, sysroot, and library search path. Example for Tizen
-Studio installed in `~/tizen-studio`:
-
-```toml
-[target.armv7l-tizen-linux-gnueabi]
-linker = "/Users/you/tizen-studio/tools/arm-linux-gnueabi-gcc-9.2/bin/arm-linux-gnueabi-gcc"
-rustflags = [
-    "-C", "link-arg=--sysroot=/Users/you/tizen-studio/platforms/tizen-7.0/tizen/rootstraps/tizen-7.0-device.core",
-    "-L", "/Users/you/tizen-studio/platforms/tizen-7.0/tizen/rootstraps/tizen-7.0-device.core/usr/lib",
-]
-
-[target.aarch64-tizen-linux-gnu]
-linker = "/Users/you/tizen-studio/tools/aarch64-linux-gnu-gcc-9.2/bin/aarch64-linux-gnu-gcc"
-rustflags = [
-    "-C", "link-arg=--sysroot=/Users/you/tizen-studio/platforms/tizen-7.0/tizen/rootstraps/tizen-7.0-device-64.core",
-    "-L", "/Users/you/tizen-studio/platforms/tizen-7.0/tizen/rootstraps/tizen-7.0-device-64.core/usr/lib",
-]
-```
-
-Adjust paths for your installation. Replace `tizen-7.0` with your target Tizen
-version.
-
-## Building
-
-```sh
-cargo build --release --target armv7l-tizen-linux-gnueabi
-```
-
-The output binary lands at `target/armv7l-tizen-linux-gnueabi/release/<your-binary>`.
+The `tizen` cfg activation (paths 1 and 2) gives you the same *behaviour* as a
+real `target_vendor = "tizen"` would, on stable Rust, without rebuilding std.
 
 ## Deploying to a device
 
 ```sh
-sdb push target/armv7l-tizen-linux-gnueabi/release/<your-binary> /tmp/
+# via cargo-tizen
+cargo tizen install -A armv7l --release
+
+# manually
+sdb push target/armv7-unknown-linux-gnueabi/release/<your-binary> /tmp/
 sdb shell chmod +x /tmp/<your-binary>
 sdb shell /tmp/<your-binary>
 ```
@@ -114,33 +163,30 @@ sdb shell /tmp/<your-binary>
 sdb shell dlogutil <YourTag>:* '*:S'
 ```
 
-`<YourTag>` is whatever you passed to `tizen_dlog::init("YourTag")`.
+`<YourTag>` is whatever you passed to `tizen_dlog::init("YourTag")` (or
+`tizen::dlog::init` via the umbrella).
 
 ## Stripping for size
 
 ```sh
-arm-linux-gnueabi-strip target/armv7l-tizen-linux-gnueabi/release/<your-binary>
+arm-linux-gnueabi-strip target/armv7-unknown-linux-gnueabi/release/<your-binary>
 ```
 
-The release profile in this workspace already enables `strip = "debuginfo"` and
-`lto = "thin"` — usually enough. Run `arm-linux-gnueabi-size <binary>` to
-inspect section sizes.
+The workspace's release profile already enables `strip = "debuginfo"` and
+`lto = "thin"`. Run `arm-linux-gnueabi-size <binary>` for a section breakdown.
 
 ## Troubleshooting
 
-**`error: linking with cc failed`** — usually the linker can't find `libdlog.so`
-or your other native lib. Check the `-L` path in `.cargo/config.toml` points
-at the correct rootstrap's `usr/lib` directory.
+**`error: linking with cc failed: undefined reference to dlog_print_raw`** —
+the `tizen` cfg/feature isn't active so the link directive didn't fire. Either
+build through cargo-tizen, enable `features = ["tizen"]` on your dep, or add
+`--cfg tizen` to RUSTFLAGS.
 
-**`undefined reference to dlog_print_raw`** — the `-ldlog` flag isn't being
-passed. If using Option A above, make sure you added `link-arg=-ldlog` to your
-project's `rustflags`. If using Option B, make sure your custom target JSON
-sets `"vendor": "tizen"`.
+**`error: linker cannot find -ldlog`** — the cfg/feature *is* active and the
+link directive fired, but the linker can't find `libdlog.so` in the sysroot.
+Check the `-L` path in `.cargo/config.toml` points at the rootstrap's
+`usr/lib` directory.
 
-**Binary runs but produces no `dlogutil` output** — check the priority filter:
-`dlogutil *:V` shows everything. Default `dlogutil` filters out DEBUG and below.
-
-**`cannot execute binary file: Exec format error`** — wrong target architecture
-for the device. 32-bit Tizen wearables use `armv7l-tizen-linux-gnueabi`,
-64-bit phones/TVs use `aarch64-tizen-linux-gnu`. Check the device with
-`sdb shell uname -m`.
+**`error: cannot execute binary file: Exec format error`** on the device —
+wrong target architecture. 32-bit Tizen wearables use armv7l; 64-bit phones/TVs
+use aarch64. Check with `sdb shell uname -m`.
