@@ -12,6 +12,13 @@ categories = ["external-ffi-bindings", "no-std"]
 keywords = ["tizen", "dlog", "logging", "ffi", "bindings"]
 readme = "README.md"
 
+[features]
+default = []
+# Force linking against `libdlog.so`. Used as an explicit opt-in by consumers
+# who don't build through `cargo-tizen` (which sets `--cfg tizen` via RUSTFLAGS
+# and activates linking that way without needing this feature).
+tizen = []
+
 [lib]
 
 [lints]

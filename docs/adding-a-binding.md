@@ -77,7 +77,7 @@ pub enum foo_status_e {
     FOO_STATUS_ERROR = -1,
 }
 
-#[cfg_attr(target_vendor = "tizen", link(name = "foo", kind = "dylib"))]
+#[cfg_attr(any(tizen, feature = "tizen"), link(name = "foo", kind = "dylib"))]
 extern "C" {
     pub fn foo_init() -> foo_status_e;
     pub fn foo_get_value(out: *mut c_int) -> foo_status_e;
@@ -85,10 +85,19 @@ extern "C" {
 }
 ```
 
+```toml
+# Cargo.toml — expose the `tizen` feature for users who don't go through cargo-tizen
+[features]
+default = []
+tizen = []
+```
+
 **Rules for `-sys` crates:**
 - `#![no_std]`. Use `core::ffi`, not `std::ffi`.
-- `#[cfg_attr(target_vendor = "tizen", link(...))]` on the `extern "C"` block.
-  This makes off-device `cargo check` work without a Tizen sysroot.
+- `#[cfg_attr(any(tizen, feature = "tizen"), link(...))]` on the `extern "C"`
+  block. The `tizen` cfg is set automatically by `cargo-tizen` via RUSTFLAGS;
+  the `tizen` cargo feature is the explicit-opt-in escape hatch. Both must
+  activate the same link directive.
 - No dependencies beyond `core`.
 - No `build.rs` unless absolutely needed.
 - Hand-write the bindings. If the API has more than ~200 functions, ask in the
@@ -125,6 +134,11 @@ categories = ["api-bindings"]
 keywords = ["tizen", "foo"]
 readme = "README.md"
 
+[features]
+default = []
+# Forwarding feature — turns on the same activation in the -sys crate.
+tizen = ["tizen-foo-sys/tizen"]
+
 [dependencies]
 tizen-foo-sys = { workspace = true }
 
@@ -151,19 +165,20 @@ the workspace `[workspace.dependencies]` table.
 ```rust
 // crates/tizen-foo/examples/hello_foo.rs
 
-#[cfg(target_vendor = "tizen")]
+#[cfg(any(tizen, feature = "tizen"))]
 fn main() {
     // real example here
 }
 
-#[cfg(not(target_vendor = "tizen"))]
+#[cfg(not(any(tizen, feature = "tizen")))]
 fn main() {
-    eprintln!("hello_foo: build for a Tizen target to actually exercise the API.");
+    eprintln!("hello_foo: build with cargo-tizen, --cfg tizen, or features = [\"tizen\"].");
 }
 ```
 
 The cfg gate lets the example compile (as a stub) on host so `cargo build --examples`
-doesn't fail in CI without a Tizen sysroot.
+doesn't fail in CI without a Tizen sysroot. Match the cfg expression exactly to
+what `tizen-foo-sys` uses for its `link` directive.
 
 Document the on-device test procedure in the example's doc comment:
 
