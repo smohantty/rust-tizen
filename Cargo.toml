@@ -14,6 +14,7 @@ authors = ["The rust-tizen contributors"]
 [workspace.dependencies]
 log = { version = "0.4", default-features = false, features = ["std"] }
 tizen-dlog-sys = { version = "0.1.0", path = "crates/tizen-dlog-sys" }
+tizen-dlog = { version = "0.1.0", path = "crates/tizen-dlog" }
 
 # Register `target_vendor = "tizen"` as an expected cfg value. Tizen target triples
 # (e.g. armv7l-tizen-linux-gnueabi) put `tizen` in the vendor field, but it isn't

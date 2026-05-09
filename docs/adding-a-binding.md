@@ -175,16 +175,41 @@ Document the on-device test procedure in the example's doc comment:
 //!     # expected output: ...
 ```
 
-### 5. Update the status table
+### 5. Wire the umbrella crate
 
-In the root [`README.md`](../README.md), add a row to the `## Crates` table:
+In [`crates/tizen/Cargo.toml`](../crates/tizen/Cargo.toml):
+
+```toml
+[features]
+foo = ["dep:tizen-foo"]   # add this line
+
+[dependencies]
+tizen-foo = { workspace = true, optional = true }   # add this line
+```
+
+In [`crates/tizen/src/lib.rs`](../crates/tizen/src/lib.rs):
+
+```rust
+#[cfg(feature = "foo")]
+#[cfg_attr(docsrs, doc(cfg(feature = "foo")))]
+pub use tizen_foo as foo;
+```
+
+Also add `tizen-foo = { version = "0.1.0", path = "crates/tizen-foo" }` to
+the workspace `[workspace.dependencies]` table in the root `Cargo.toml`.
+
+### 6. Update the status table
+
+In the root [`README.md`](../README.md), add rows to the `## Crates` table:
 
 ```markdown
 | `tizen-foo`        | `0.1.0` | 🟢 alpha | `libfoo` | One-line description |
 | `tizen-foo-sys`    | `0.1.0` | 🟢 alpha | `libfoo` | Raw FFI bindings     |
 ```
 
-### 6. Run local checks
+…and update the `tizen` umbrella's feature list in its own README and rustdoc.
+
+### 7. Run local checks
 
 ```sh
 cargo fmt
@@ -195,7 +220,7 @@ cargo doc --workspace --no-deps
 
 All four must pass before opening a PR.
 
-### 7. Verify on a Tizen device
+### 8. Verify on a Tizen device
 
 Cross-compile, push, run, capture output. Paste the transcript into the PR
 description. State the Tizen version (e.g. "Tizen 7.0 on a Galaxy Watch 5").
@@ -207,7 +232,7 @@ sdb shell /tmp/hello_foo
 # (capture and paste the output)
 ```
 
-### 8. Open the PR
+### 9. Open the PR
 
 Title: `Add tizen-foo: <one-line description>`
 

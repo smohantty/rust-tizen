@@ -1,0 +1,50 @@
+[package]
+name = "tizen"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Idiomatic Rust bindings to Tizen platform APIs (umbrella crate)"
+categories = ["api-bindings", "os::unix-apis"]
+keywords = ["tizen", "platform", "bindings", "ffi"]
+readme = "README.md"
+
+[features]
+# No features on by default. Users opt into the bindings they need so the
+# dependency graph and compile cost match the surface they actually use.
+default = []
+
+# Logging via Tizen's dlog. Implements log::Log so log::info!/error!/etc.
+# route to dlogutil. See `tizen-dlog` for the full API.
+dlog = ["dep:tizen-dlog"]
+
+# (Planned) tizen-app: app lifecycle, intents, app_control events.
+# app = ["dep:tizen-app"]
+
+# (Planned) tizen-system-info: device model, OS version, runtime capabilities.
+# system-info = ["dep:tizen-system-info"]
+
+# (Planned) tizen-sensor: accelerometer, gyro, light, proximity, etc.
+# sensor = ["dep:tizen-sensor"]
+
+# (Planned) tizen-bundle: bundle (key-value) IPC payloads.
+# bundle = ["dep:tizen-bundle"]
+
+# (Planned) tizen-notification: system notifications.
+# notification = ["dep:tizen-notification"]
+
+[dependencies]
+tizen-dlog = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+# docs.rs builds with all features so every binding's docs are visible,
+# and we add the `docsrs` cfg so we can sprinkle "available on feature X"
+# badges in rustdoc.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -10,49 +10,71 @@ Tizen ships a rich set of native C APIs (logging, app lifecycle, sensors, system
 
 ```toml
 [dependencies]
-tizen-dlog = "0.1"
-# tizen-app = "0.1"          # later
-# tizen-system-info = "0.1"  # later
+# Umbrella: opt into the bindings you need by feature
+tizen = { version = "0.1", features = ["dlog"] }
 ```
 
 …with safe wrappers, `log`/`tracing` integration where applicable, and consistent conventions across every binding.
 
 ## Crates
 
-| Crate              | Version   | Status     | Tizen library               | Purpose                              |
-|--------------------|-----------|------------|-----------------------------|--------------------------------------|
-| [`tizen-dlog`]     | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | `log` facade → Tizen `dlogutil`      |
-| [`tizen-dlog-sys`] | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | Raw FFI bindings for `dlog.h`        |
-| `tizen-app`        | —         | 📝 planned | `libcapi-appfw-application` | App lifecycle, intents, events       |
-| `tizen-system-info`| —         | 📝 planned | `libcapi-system-info`       | Device capabilities, OS metadata     |
-| `tizen-sensor`     | —         | 📝 planned | `libcapi-system-sensor`     | Accelerometer, gyro, light, …        |
-| `tizen-bundle`     | —         | 📝 planned | `libbundle`                 | Bundle (key-value) IPC payloads      |
-| `tizen-notification`| —        | 📝 planned | `libnotification`           | System notifications                 |
+| Crate                  | Version   | Status     | Tizen library               | Purpose                                          |
+|------------------------|-----------|------------|-----------------------------|--------------------------------------------------|
+| [`tizen`]              | `0.1.0`   | 🟢 alpha   | —                           | Umbrella; re-exports each binding behind a feature |
+| [`tizen-dlog`]         | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | `log` facade → Tizen `dlogutil`                  |
+| [`tizen-dlog-sys`]     | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | Raw FFI bindings for `dlog.h`                    |
+| `tizen-app`            | —         | 📝 planned | `libcapi-appfw-application` | App lifecycle, intents, events                   |
+| `tizen-system-info`    | —         | 📝 planned | `libcapi-system-info`       | Device capabilities, OS metadata                 |
+| `tizen-sensor`         | —         | 📝 planned | `libcapi-system-sensor`     | Accelerometer, gyro, light, …                    |
+| `tizen-bundle`         | —         | 📝 planned | `libbundle`                 | Bundle (key-value) IPC payloads                  |
+| `tizen-notification`   | —         | 📝 planned | `libnotification`           | System notifications                             |
 
 **Status legend:** 📝 planned · 🟡 in progress · 🟢 alpha · 🔵 beta · ✅ stable
 
+[`tizen`]: ./crates/tizen
 [`tizen-dlog`]: ./crates/tizen-dlog
 [`tizen-dlog-sys`]: ./crates/tizen-dlog-sys
 
-## Quick start (with `tizen-dlog`)
+## Quick start
+
+Two equivalent paths — pick whichever suits your project:
+
+### Via the umbrella (recommended)
 
 ```toml
 [dependencies]
+tizen = { version = "0.1", features = ["dlog"] }
 log = "0.4"
+```
+
+```rust
+fn main() {
+    tizen::dlog::init("MyApp").expect("install logger");
+    log::info!("hello from rust");
+    log::error!(target: "Network", "boom: {}", 42);
+}
+```
+
+### Direct dependency
+
+```toml
+[dependencies]
 tizen-dlog = "0.1"
+log = "0.4"
 ```
 
 ```rust
 fn main() {
     tizen_dlog::init("MyApp").expect("install logger");
     log::info!("hello from rust");
-    log::error!(target: "Network", "boom: {}", 42);
 }
 ```
 
-On a Tizen device, view the output with `dlogutil MyApp:* Network:* '*:S'`.
+Both compile to the same code — the umbrella is a thin re-exporter. Use the
+umbrella when you want one dependency that grows with you; use direct deps
+when you want your `Cargo.toml` to spell out exactly which subsystems you touch.
 
-See the [`tizen-dlog` crate README](./crates/tizen-dlog/README.md) for the full API.
+On a Tizen device, view the output with `dlogutil MyApp:* Network:* '*:S'`.
 
 ## Building for Tizen
 
@@ -75,6 +97,7 @@ sdb shell /tmp/<your-binary>
 rust-tizen/
 ├── Cargo.toml                  # workspace manifest
 ├── crates/                     # all sub-crates
+│   ├── tizen/                  # umbrella; re-exports bindings via cargo features
 │   ├── tizen-dlog-sys/         # raw FFI for libdlog
 │   └── tizen-dlog/             # safe wrapper + log::Log impl
 ├── docs/
@@ -88,6 +111,7 @@ Every binding follows the same shape:
 
 - `tizen-foo-sys/` — hand-written `extern "C"` declarations, `#![no_std]`, no deps beyond `core`.
 - `tizen-foo/` — safe wrapper, idiomatic Rust API, optional `log`/`tracing` integration.
+- One line added to `tizen/Cargo.toml` (a feature) and one line added to `tizen/src/lib.rs` (a re-export) so the umbrella picks it up.
 
 ## Versioning
 
