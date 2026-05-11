@@ -23,7 +23,8 @@ tizen = { version = "0.1", features = ["dlog"] }
 | [`tizen`]              | `0.1.0`   | 🟢 alpha   | —                           | Umbrella; re-exports each binding behind a feature |
 | [`tizen-dlog`]         | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | `log` facade → Tizen `dlogutil`                  |
 | [`tizen-dlog-sys`]     | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | Raw FFI bindings for `dlog.h`                    |
-| `tizen-app`            | —         | 📝 planned | `libcapi-appfw-application` | App lifecycle, intents, events                   |
+| [`tizen-app`]          | `0.1.0`   | 🟢 alpha   | `libcapi-appfw-application` | App lifecycle + `app_control`, optional `tokio`  |
+| [`tizen-app-sys`]      | `0.1.0`   | 🟢 alpha   | `libcapi-appfw-application` | Raw FFI for `ui_app_main` / `app_control`        |
 | `tizen-system-info`    | —         | 📝 planned | `libcapi-system-info`       | Device capabilities, OS metadata                 |
 | `tizen-sensor`         | —         | 📝 planned | `libcapi-system-sensor`     | Accelerometer, gyro, light, …                    |
 | `tizen-bundle`         | —         | 📝 planned | `libbundle`                 | Bundle (key-value) IPC payloads                  |
@@ -34,6 +35,8 @@ tizen = { version = "0.1", features = ["dlog"] }
 [`tizen`]: ./crates/tizen
 [`tizen-dlog`]: ./crates/tizen-dlog
 [`tizen-dlog-sys`]: ./crates/tizen-dlog-sys
+[`tizen-app`]: ./crates/tizen-app
+[`tizen-app-sys`]: ./crates/tizen-app-sys
 
 ## Quick start
 
@@ -91,8 +94,15 @@ sdb push target/tizen/<arch>/cargo/<rust-triple>/release/<your-binary> /opt/usr/
 sdb shell /opt/usr/<your-binary>
 ```
 
-For an end-to-end consumer example (depends on this repo via git, opts into
-the `dlog` feature), see [`examples/hello-dlog/`](./examples/hello-dlog/).
+End-to-end consumer examples (each is a standalone crate that depends on
+this repo via git and opts into specific features):
+
+- [`examples/hello-dlog/`](./examples/hello-dlog/) — `dlog` feature.
+- [`examples/hello-app/`](./examples/hello-app/) — `app` + `dlog`, sync
+  [`Lifecycle`](./crates/tizen-app/src/lifecycle.rs) trait.
+- [`examples/hello-app-tokio/`](./examples/hello-app-tokio/) — `app-tokio`
+  + `dlog`, async `AsyncLifecycle` driven by `run_async_with` (custom
+  tokio runtime config).
 
 ## Project layout
 

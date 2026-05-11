@@ -21,8 +21,10 @@ default = []
 # route to dlogutil. See `tizen-dlog` for the full API.
 dlog = ["dep:tizen-dlog"]
 
-# (Planned) tizen-app: app lifecycle, intents, app_control events.
-# app = ["dep:tizen-app"]
+# App lifecycle + app_control intents. See `tizen-app` for the full API.
+app = ["dep:tizen-app"]
+# Same, plus tokio integration (AsyncLifecycle, run_async, run_async_with).
+app-tokio = ["app", "tizen-app/tokio"]
 
 # (Planned) tizen-system-info: device model, OS version, runtime capabilities.
 # system-info = ["dep:tizen-system-info"]
@@ -38,6 +40,7 @@ dlog = ["dep:tizen-dlog"]
 
 [dependencies]
 tizen-dlog = { workspace = true, optional = true }
+tizen-app = { workspace = true, optional = true }
 
 [lints]
 workspace = true

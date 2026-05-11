@@ -16,6 +16,8 @@ authors = ["The rust-tizen contributors"]
 log = { version = "0.4", default-features = false, features = ["std"] }
 tizen-dlog-sys = { version = "0.1.0", path = "crates/tizen-dlog-sys" }
 tizen-dlog = { version = "0.1.0", path = "crates/tizen-dlog" }
+tizen-app-sys = { version = "0.1.0", path = "crates/tizen-app-sys" }
+tizen-app = { version = "0.1.0", path = "crates/tizen-app" }
 
 # `cargo tizen build` injects `--cfg tizen`; register it as an expected cfg.
 [workspace.lints.rust.unexpected_cfgs]

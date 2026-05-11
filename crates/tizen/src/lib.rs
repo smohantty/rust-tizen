@@ -23,7 +23,8 @@
 //! | Feature        | Module          | Status     | Backing crate                |
 //! |----------------|-----------------|------------|------------------------------|
 //! | `dlog`         | [`dlog`]        | 🟢 alpha   | [`tizen-dlog`]               |
-//! | `app`          | `app`           | 📝 planned | `tizen-app`                  |
+//! | `app`          | [`app`]         | 🟢 alpha   | [`tizen-app`]                |
+//! | `app-tokio`    | [`app`]         | 🟢 alpha   | [`tizen-app`] + tokio        |
 //! | `system-info`  | `system_info`   | 📝 planned | `tizen-system-info`          |
 //! | `sensor`       | `sensor`        | 📝 planned | `tizen-sensor`               |
 //! | `bundle`       | `bundle`        | 📝 planned | `tizen-bundle`               |
@@ -54,3 +55,12 @@
 #[cfg(feature = "dlog")]
 #[cfg_attr(docsrs, doc(cfg(feature = "dlog")))]
 pub use tizen_dlog as dlog;
+
+/// App lifecycle (`ui_app_main`) + `app_control` intents. Optional
+/// tokio runtime under the `app-tokio` feature.
+///
+/// Re-exported from the [`tizen-app`](https://crates.io/crates/tizen-app)
+/// crate. Enable with the `app` feature (or `app-tokio` for async).
+#[cfg(feature = "app")]
+#[cfg_attr(docsrs, doc(cfg(feature = "app")))]
+pub use tizen_app as app;

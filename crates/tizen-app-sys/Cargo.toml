@@ -1,0 +1,16 @@
+[package]
+name = "tizen-app-sys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Raw FFI bindings for Tizen's app framework (ui_app_main / app_control)"
+categories = ["api-bindings", "os::unix-apis"]
+keywords = ["tizen", "appfw", "ffi"]
+readme = "README.md"
+
+[lints]
+workspace = true
