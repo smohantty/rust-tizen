@@ -15,6 +15,7 @@ readme = "README.md"
 [dependencies]
 log = { workspace = true }
 tizen-dlog-sys = { workspace = true }
+libc = "0.2"
 
 [[example]]
 name = "hello_dlog"

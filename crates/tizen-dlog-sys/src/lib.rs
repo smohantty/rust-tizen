@@ -35,6 +35,11 @@ pub enum log_id_t {
 }
 
 // Link `libdlog.so` only when building for Tizen (cargo-tizen sets `cfg(tizen)`).
+//
+// Only symbols that exist on every supported Tizen version are declared
+// here. Newer-version-only symbols (e.g. `dlog_set_minimum_priority`,
+// introduced in Tizen 11) are looked up via `dlsym` from the safe wrapper
+// so a single binary loads cleanly on both Tizen 10 and 11.
 #[cfg_attr(tizen, link(name = "dlog", kind = "dylib"))]
 extern "C" {
     pub fn dlog_print(prio: log_priority, tag: *const c_char, fmt: *const c_char, ...) -> c_int;
@@ -46,6 +51,4 @@ extern "C" {
         fmt: *const c_char,
         ...
     ) -> c_int;
-
-    pub fn dlog_set_minimum_priority(prio: log_priority) -> c_int;
 }

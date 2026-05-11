@@ -88,9 +88,7 @@ impl DlogLoggerBuilder {
         let logger = self.build();
         let max_level = logger.level;
         #[cfg(tizen)]
-        unsafe {
-            sys::dlog_set_minimum_priority(crate::priority::level_filter_to_priority(max_level));
-        }
+        try_set_min_priority(crate::priority::level_filter_to_priority(max_level));
         log::set_boxed_logger(Box::new(logger))?;
         log::set_max_level(max_level);
         Ok(())
@@ -149,6 +147,24 @@ impl Log for DlogLogger {
     }
 
     fn flush(&self) {}
+}
+
+/// Best-effort: call `dlog_set_minimum_priority` if libdlog exports it
+/// (Tizen 11+). On Tizen 10 the symbol is absent — we silently skip and
+/// rely on the Rust-side `log::set_max_level` filter plus
+/// `/etc/dlog.conf` defaults.
+#[cfg(tizen)]
+fn try_set_min_priority(prio: tizen_dlog_sys::log_priority) {
+    type SetFn = unsafe extern "C" fn(tizen_dlog_sys::log_priority) -> i32;
+    let name = c"dlog_set_minimum_priority";
+    let ptr = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };
+    if ptr.is_null() {
+        return;
+    }
+    let f: SetFn = unsafe { std::mem::transmute(ptr) };
+    unsafe {
+        let _ = f(prio);
+    }
 }
 
 #[cfg(not(tizen))]
