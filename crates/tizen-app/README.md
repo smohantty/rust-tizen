@@ -93,6 +93,43 @@ can be exercised on plain Linux:
 
 Useful for iterating on app logic without flashing a device.
 
+## Dependencies
+
+We try to make the dependency story tight. What you pay for:
+
+- **Sync** (`features = ["app"]`): zero async runtime. The tree is
+  `log`, `libc`, `tizen-app-sys`, `tizen-app` — four crates total.
+- **Async** (`features = ["tokio"]`): adds `tokio` with `default-features
+  = false, features = ["rt-multi-thread"]` only, plus `pin-project-lite`.
+  No `mio`, `signal-hook-registry`, `tokio-macros`, or proc-macro chain.
+
+The tokio dep is **optional and feature-gated**, so a sync-only consumer
+sees no tokio anywhere in their tree.
+
+### Pinning tokio in your app
+
+You don't have to. We re-export it: `tizen_app::tokio` is the same crate
+we depend on. For runtime spawning + handles that's enough.
+
+If you need extra tokio features (`time`, `signal`, `macros`, `fs`, …),
+add tokio to your own `Cargo.toml`. Cargo's resolver will unify our pin
+(`tokio = "1"`, features `rt-multi-thread`) with yours into one
+compilation with the union of features — zero duplication.
+
+```toml
+[dependencies]
+# Async app with custom tokio features:
+tizen-app = { version = "0.1", features = ["tokio"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "time"] }
+```
+
+```toml
+[dependencies]
+# Minimal async app — use re-exported tokio only:
+tizen-app = { version = "0.1", features = ["tokio"] }
+# (no tokio in your Cargo.toml; `use tizen_app::tokio;` in your code)
+```
+
 ## License
 
 Dual-licensed under Apache-2.0 OR MIT.
