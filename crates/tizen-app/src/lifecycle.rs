@@ -1,39 +1,16 @@
 use crate::app_control::AppControl;
 use crate::error::AppError;
 
-/// Synchronous app lifecycle callbacks.
-///
-/// All methods except [`create`](Lifecycle::create) have empty defaults so
-/// implementors only override what they need.
+/// Synchronous UI-app lifecycle callbacks.
 pub trait Lifecycle {
-    /// Called once, before the first window is rendered. Return `Err` to
-    /// abort startup.
     fn create(&mut self) -> Result<(), AppError>;
-
-    /// Called when the framework is about to terminate the process.
     fn terminate(&mut self) {}
-
-    /// Called when the app is fully obscured by another window.
     fn pause(&mut self) {}
-
-    /// Called when the app becomes visible again.
     fn resume(&mut self) {}
-
-    /// Called for every incoming `app_control` (launch intent, deep link, …).
-    /// `ctrl` borrows the framework's handle and is only valid for the
-    /// duration of this call.
     fn app_control(&mut self, _ctrl: AppControl<'_>) {}
 }
 
-/// Run the application loop. Never returns — the process exits when the
-/// framework decides to terminate.
-///
-/// - Under `cfg(tizen)`: dispatches into `ui_app_main`. The framework drives
-///   the lifecycle; `Lifecycle` methods are called from the GLib main-loop
-///   thread.
-/// - Off-target: a host fallback fires `create → resume`, parks the main
-///   thread, and lets the process be killed externally. Useful for
-///   exercising application logic on Linux without flashing a device.
+/// Run the application loop. Never returns.
 pub fn run<L: Lifecycle + 'static>(lifecycle: L) -> ! {
     #[cfg(tizen)]
     {

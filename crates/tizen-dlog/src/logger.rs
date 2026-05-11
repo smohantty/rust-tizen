@@ -149,10 +149,6 @@ impl Log for DlogLogger {
     fn flush(&self) {}
 }
 
-/// Best-effort: call `dlog_set_minimum_priority` if libdlog exports it
-/// (Tizen 11+). On Tizen 10 the symbol is absent — we silently skip and
-/// rely on the Rust-side `log::set_max_level` filter plus
-/// `/etc/dlog.conf` defaults.
 #[cfg(tizen)]
 fn try_set_min_priority(prio: tizen_dlog_sys::log_priority) {
     type SetFn = unsafe extern "C" fn(tizen_dlog_sys::log_priority) -> i32;

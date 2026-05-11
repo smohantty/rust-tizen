@@ -51,12 +51,7 @@ pub use tokio_runtime::{
     AsyncServiceLifecycle,
 };
 
-/// Re-export of the `tokio` crate so consumers can write `tizen::app::tokio`
-/// without pinning their own dep when they only need what this crate
-/// already enables (`rt-multi-thread`). Consumers who need additional
-/// tokio features (`time`, `signal`, `macros`, `fs`, …) should add tokio
-/// to their own `Cargo.toml`; Cargo's resolver unifies our pin with
-/// theirs into one compilation.
+/// Re-export of the `tokio` crate.
 #[cfg(feature = "tokio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub use ::tokio;

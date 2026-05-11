@@ -1,23 +1,14 @@
 use crate::app_control::AppControl;
 use crate::error::AppError;
 
-/// Synchronous service-app lifecycle callbacks. Service apps are headless —
-/// no `pause` / `resume` because they have no visible state.
+/// Synchronous service-app lifecycle callbacks (headless, no pause/resume).
 pub trait ServiceLifecycle {
-    /// Called once on startup. Return `Err` to abort.
     fn create(&mut self) -> Result<(), AppError>;
-
-    /// Called when the framework is terminating the service.
     fn terminate(&mut self) {}
-
-    /// Called for each incoming `app_control` (launch / message).
     fn app_control(&mut self, _ctrl: AppControl<'_>) {}
 }
 
-/// Run a service-app loop. Like [`run`](crate::run) but uses
-/// `service_app_main` (`libappcore-agent.so`) — no UI / Wayland / EFL
-/// dependency, so it works in any headless environment a service is
-/// allowed to start in.
+/// Run a service-app loop via `service_app_main`. Never returns.
 pub fn run_service<L: ServiceLifecycle + 'static>(lifecycle: L) -> ! {
     #[cfg(tizen)]
     {

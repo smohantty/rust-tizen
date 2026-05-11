@@ -8,62 +8,34 @@ use crate::error::AppError;
 use crate::lifecycle::{run, Lifecycle};
 use crate::service::{run_service, ServiceLifecycle};
 
-/// Async counterpart of [`Lifecycle`](crate::Lifecycle). Methods can `.await`;
-/// the runtime is owned by [`run_async`] / [`run_async_with`].
-///
-/// Note: `app_control` borrows from the framework callback's stack. Extract
-/// data from it synchronously before any `.await` if you need to use the
-/// values from a spawned task.
+/// Async counterpart of [`Lifecycle`](crate::Lifecycle).
 pub trait AsyncLifecycle: Send + 'static {
-    /// Called once on startup. Return `Err` to abort.
     fn create(&mut self) -> impl Future<Output = Result<(), AppError>> + Send;
 
-    /// Called when the framework is terminating the process.
     fn terminate(&mut self) -> impl Future<Output = ()> + Send {
         async {}
     }
 
-    /// Called when the app is fully obscured.
     fn pause(&mut self) -> impl Future<Output = ()> + Send {
         async {}
     }
 
-    /// Called when the app becomes visible.
     fn resume(&mut self) -> impl Future<Output = ()> + Send {
         async {}
     }
 
-    /// Called for incoming `app_control`. The borrowed handle is valid for
-    /// the duration of this call only — extract any data you need before
-    /// awaiting on something the framework can't drive.
-    ///
-    /// Note: the returned future is intentionally **not** `Send`, because
-    /// `AppControl<'_>` contains a raw `app_control_h` pointer that isn't
-    /// safe to share across threads. Extract data into owned values inside
-    /// the future body before any `.await` if you need to use those values
-    /// from a `tokio::spawn`.
     fn app_control(&mut self, _ctrl: AppControl<'_>) -> impl Future<Output = ()> {
         async {}
     }
 }
 
-/// Run an [`AsyncLifecycle`] with a default multi-thread tokio runtime
-/// (`enable_all()`). The runtime is owned by this call and shut down on app
-/// exit.
-///
-/// Equivalent to `run_async_with(lifecycle, |b| b)`.
+/// Run an [`AsyncLifecycle`] on a default multi-thread tokio runtime.
 pub fn run_async<L: AsyncLifecycle>(lifecycle: L) -> ! {
     run_async_with(lifecycle, |b| b)
 }
 
 /// Run an [`AsyncLifecycle`] with a tokio runtime configured by `configure`.
-///
-/// `configure` receives a multi-thread [`Builder`] with `enable_all()`
-/// already set. Pass `|b| b` to keep defaults. Use this to set
-/// `worker_threads`, `max_blocking_threads`, thread names, etc.
-///
-/// To get a `current_thread` flavour, replace the builder via
-/// `|b| { *b = tokio::runtime::Builder::new_current_thread(); b.enable_all() }`.
+/// `configure` receives a multi-thread [`Builder`] with `enable_all()` set.
 pub fn run_async_with<L, F>(lifecycle: L, configure: F) -> !
 where
     L: AsyncLifecycle,
@@ -83,8 +55,6 @@ where
     run(adapter)
 }
 
-/// Bridge: implements sync [`Lifecycle`] by `block_on`ing the user's
-/// async methods on the owned runtime.
 struct Adapter<L: AsyncLifecycle> {
     rt: Runtime,
     inner: Mutex<L>,
@@ -124,8 +94,7 @@ pub trait AsyncServiceLifecycle: Send + 'static {
     }
 }
 
-/// Service-app equivalent of [`run_async`]. Owns a tokio runtime and
-/// dispatches into it from `service_app_main` callbacks.
+/// Service-app equivalent of [`run_async`].
 pub fn run_service_async<L: AsyncServiceLifecycle>(lifecycle: L) -> ! {
     run_service_async_with(lifecycle, |b| b)
 }

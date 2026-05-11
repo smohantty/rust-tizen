@@ -65,13 +65,10 @@ which provisions the rootstrap, configures the linker, and injects
   `tizen::dlog::*` calls. See `crates/tizen-dlog/src/logger.rs` for the
   pattern.
 - **Async runtime deps are optional + feature-gated, never default.**
-  When a binding crate needs a runtime (e.g. `tizen-app` for the async
-  variant), declare `tokio = { …, optional = true, default-features =
-  false, features = […minimal…] }` and put the user-facing helpers
-  behind a `tokio` cargo feature. Re-export the runtime crate so
-  consumers don't have to re-pin it. Cargo's resolver unifies our pin
-  with the consumer's pin (if any) into a single compilation. A
-  sync-only consumer must see zero runtime crates in their dep tree.
+  Declare `tokio = { …, optional = true, default-features = false,
+  features = […minimal…] }`, expose the async helpers behind a
+  `tokio` cargo feature, and re-export the runtime crate. A sync-only
+  consumer must see zero runtime crates in their dep tree.
 - **`examples/hello-dlog/` is intentionally outside the workspace** and
   depends on `tizen` via `git`, not `path`, so it mirrors real downstream
   consumption. Don't add it to `[workspace.members]`.

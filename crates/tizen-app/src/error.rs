@@ -1,14 +1,9 @@
 use std::fmt;
 
-/// Errors surfaced by the safe wrapper.
 #[derive(Debug)]
 pub enum AppError {
-    /// `ui_app_main` returned a non-zero status code (off-Tizen this never fires).
     Main(i32),
-    /// The user-supplied `Lifecycle::create` returned an error.
     Create(Box<dyn std::error::Error + Send + Sync + 'static>),
-    /// Lifecycle callback panicked. The wrapper caught the panic so we don't
-    /// unwind into C; the original payload is dropped.
     Panic,
 }
 

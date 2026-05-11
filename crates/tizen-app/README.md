@@ -43,9 +43,8 @@ fn main() {
 }
 ```
 
-Service apps use `service_app_main` (from `libappcore-agent.so`) — no UI,
-no Wayland, no `pause` / `resume`. They run in any headless environment a
-service is permitted to start in.
+Service apps use `service_app_main` (from `libappcore-agent.so`) — no
+`pause` / `resume`.
 
 ## Async (`tokio` feature)
 
@@ -85,50 +84,17 @@ with the [`AsyncServiceLifecycle`] trait — follow the same pattern.
 
 ## Host fallback
 
-On non-Tizen builds, the wrappers simulate the lifecycle so consumer apps
-can be exercised on plain Linux:
+Off-target, the wrappers simulate the lifecycle:
 
 - `run` / `run_async`:   `create → resume → SIGINT/SIGTERM → pause → terminate`
 - `run_service` / `run_service_async`:  `create → SIGINT/SIGTERM → terminate`
 
-Useful for iterating on app logic without flashing a device.
+## Using tokio
 
-## Dependencies
-
-We try to make the dependency story tight. What you pay for:
-
-- **Sync** (`features = ["app"]`): zero async runtime. The tree is
-  `log`, `libc`, `tizen-app-sys`, `tizen-app` — four crates total.
-- **Async** (`features = ["tokio"]`): adds `tokio` with `default-features
-  = false, features = ["rt-multi-thread"]` only, plus `pin-project-lite`.
-  No `mio`, `signal-hook-registry`, `tokio-macros`, or proc-macro chain.
-
-The tokio dep is **optional and feature-gated**, so a sync-only consumer
-sees no tokio anywhere in their tree.
-
-### Pinning tokio in your app
-
-You don't have to. We re-export it: `tizen_app::tokio` is the same crate
-we depend on. For runtime spawning + handles that's enough.
-
-If you need extra tokio features (`time`, `signal`, `macros`, `fs`, …),
-add tokio to your own `Cargo.toml`. Cargo's resolver will unify our pin
-(`tokio = "1"`, features `rt-multi-thread`) with yours into one
-compilation with the union of features — zero duplication.
-
-```toml
-[dependencies]
-# Async app with custom tokio features:
-tizen-app = { version = "0.1", features = ["tokio"] }
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "time"] }
-```
-
-```toml
-[dependencies]
-# Minimal async app — use re-exported tokio only:
-tizen-app = { version = "0.1", features = ["tokio"] }
-# (no tokio in your Cargo.toml; `use tizen_app::tokio;` in your code)
-```
+`tizen_app::tokio` re-exports our tokio dep, so `use tizen_app::tokio;`
+works without pinning tokio in your `Cargo.toml`. If you need extra
+tokio features (`time`, `macros`, …), add tokio to your own deps with
+those features; Cargo will unify the compile.
 
 ## License
 
