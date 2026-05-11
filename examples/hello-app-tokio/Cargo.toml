@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "hello-app-tokio"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+publish = false
+
+[dependencies]
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["app-tokio", "dlog"] }
+log = "0.4"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "macros", "signal"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
