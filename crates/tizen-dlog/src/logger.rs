@@ -85,6 +85,9 @@ impl DlogLoggerBuilder {
     pub fn install(self) -> Result<(), SetLoggerError> {
         let logger = self.build();
         let max_level = logger.level;
+        unsafe {
+            sys::dlog_set_minimum_priority(crate::priority::level_filter_to_priority(max_level));
+        }
         log::set_boxed_logger(Box::new(logger))?;
         log::set_max_level(max_level);
         Ok(())
@@ -121,11 +124,8 @@ impl Log for DlogLogger {
         let msg = sanitise_to_cstring(&record.args().to_string());
         let prio = level_to_priority(record.level());
 
-        // SAFETY: `dlog_print_raw` reads `tag` and `fmt` as NUL-terminated C strings.
-        // We pass `c"%s"` as the format, so dlog expects exactly one trailing
-        // `*const c_char` — `msg.as_ptr()`. All three pointers are valid for the call.
         unsafe {
-            sys::dlog_print_raw(self.log_id, prio, tag_ptr, c"%s".as_ptr(), msg.as_ptr());
+            sys::__dlog_print(self.log_id, prio, tag_ptr, c"%s".as_ptr(), msg.as_ptr());
         }
     }
 

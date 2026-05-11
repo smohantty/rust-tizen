@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+exclude = ["examples/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -16,12 +17,10 @@ log = { version = "0.4", default-features = false, features = ["std"] }
 tizen-dlog-sys = { version = "0.1.0", path = "crates/tizen-dlog-sys" }
 tizen-dlog = { version = "0.1.0", path = "crates/tizen-dlog" }
 
-# Register `target_vendor = "tizen"` as an expected cfg value. Tizen target triples
-# (e.g. armv7l-tizen-linux-gnueabi) put `tizen` in the vendor field, but it isn't
-# in rustc's built-in vendor list, so this silences `unexpected_cfgs` warnings.
+# `cargo tizen build` injects `--cfg tizen`; register it as an expected cfg.
 [workspace.lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ['cfg(target_vendor, values("tizen"))']
+check-cfg = ['cfg(tizen)']
 
 # Optimised release profile for on-device binaries. Override per-crate with
 # `[profile.release]` if a specific binding needs different settings.

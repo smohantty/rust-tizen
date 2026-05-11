@@ -34,18 +34,18 @@ pub enum log_id_t {
     LOG_ID_SYSLOG = 5,
 }
 
-// Dynamically link `libdlog.so` only when targeting Tizen. On non-Tizen hosts the
-// symbols stay unresolved in the rlib; final link only fails if a binary actually
-// calls them, so `cargo check` / `cargo test --lib` still work off-device.
-#[cfg_attr(target_vendor = "tizen", link(name = "dlog", kind = "dylib"))]
+// Link `libdlog.so` only when building for Tizen (cargo-tizen sets `cfg(tizen)`).
+#[cfg_attr(tizen, link(name = "dlog", kind = "dylib"))]
 extern "C" {
     pub fn dlog_print(prio: log_priority, tag: *const c_char, fmt: *const c_char, ...) -> c_int;
 
-    pub fn dlog_print_raw(
+    pub fn __dlog_print(
         log_id: log_id_t,
         prio: log_priority,
         tag: *const c_char,
         fmt: *const c_char,
         ...
     ) -> c_int;
+
+    pub fn dlog_set_minimum_priority(prio: log_priority) -> c_int;
 }

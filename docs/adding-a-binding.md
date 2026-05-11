@@ -77,7 +77,7 @@ pub enum foo_status_e {
     FOO_STATUS_ERROR = -1,
 }
 
-#[cfg_attr(target_vendor = "tizen", link(name = "foo", kind = "dylib"))]
+#[cfg_attr(tizen, link(name = "foo", kind = "dylib"))]
 extern "C" {
     pub fn foo_init() -> foo_status_e;
     pub fn foo_get_value(out: *mut c_int) -> foo_status_e;
@@ -87,8 +87,9 @@ extern "C" {
 
 **Rules for `-sys` crates:**
 - `#![no_std]`. Use `core::ffi`, not `std::ffi`.
-- `#[cfg_attr(target_vendor = "tizen", link(...))]` on the `extern "C"` block.
-  This makes off-device `cargo check` work without a Tizen sysroot.
+- `#[cfg_attr(tizen, link(...))]` on the `extern "C"` block. `cargo tizen
+  build` sets `cfg(tizen)`; off-device `cargo check` then works without a
+  Tizen sysroot since the link directive is skipped.
 - No dependencies beyond `core`.
 - No `build.rs` unless absolutely needed.
 - Hand-write the bindings. If the API has more than ~200 functions, ask in the
@@ -151,14 +152,14 @@ the workspace `[workspace.dependencies]` table.
 ```rust
 // crates/tizen-foo/examples/hello_foo.rs
 
-#[cfg(target_vendor = "tizen")]
+#[cfg(tizen)]
 fn main() {
     // real example here
 }
 
-#[cfg(not(target_vendor = "tizen"))]
+#[cfg(not(tizen))]
 fn main() {
-    eprintln!("hello_foo: build for a Tizen target to actually exercise the API.");
+    eprintln!("hello_foo: build with `cargo tizen build` to exercise the API.");
 }
 ```
 
@@ -169,9 +170,9 @@ Document the on-device test procedure in the example's doc comment:
 
 ```rust
 //! On a Tizen device:
-//!     cargo build --release --target armv7l-tizen-linux-gnueabi --example hello_foo
-//!     sdb push target/.../hello_foo /tmp/
-//!     sdb shell /tmp/hello_foo
+//!     cargo tizen build -A armv7l --release --example hello_foo
+//!     sdb push target/tizen/armv7l/.../examples/hello_foo /opt/usr/
+//!     sdb shell /opt/usr/hello_foo
 //!     # expected output: ...
 ```
 
@@ -226,9 +227,9 @@ Cross-compile, push, run, capture output. Paste the transcript into the PR
 description. State the Tizen version (e.g. "Tizen 7.0 on a Galaxy Watch 5").
 
 ```sh
-cargo build --release --target armv7l-tizen-linux-gnueabi --example hello_foo
-sdb push target/armv7l-tizen-linux-gnueabi/release/examples/hello_foo /tmp/
-sdb shell /tmp/hello_foo
+cargo tizen build -A armv7l --release --example hello_foo
+sdb push target/tizen/armv7l/cargo/armv7-unknown-linux-gnueabi/release/examples/hello_foo /opt/usr/
+sdb shell /opt/usr/hello_foo
 # (capture and paste the output)
 ```
 
@@ -245,11 +246,11 @@ Body must include:
 
 ## Common pitfalls
 
-- **Forgetting `#[cfg_attr(target_vendor = "tizen", link(...))]`.** Without it
-  either CI fails (no libfoo on host) or device builds don't link libfoo.
+- **Forgetting `#[cfg_attr(tizen, link(...))]`.** Without it either CI fails
+  (no libfoo on host) or device builds don't link libfoo.
 - **Calling C variadics directly.** If you need to wrap a printf-style function,
   pre-format in Rust and pass `c"%s"` as the format. See `tizen-dlog`'s
-  `dlog_print_raw` usage.
+  `__dlog_print` usage.
 - **Holding C strings in a struct field.** A `*const c_char` returned from C
   may be invalidated when you call other C functions. Either copy to `String`
   immediately or document the lifetime constraint.

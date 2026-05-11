@@ -25,7 +25,7 @@ Short version:
    and scope.
 2. **Create `crates/tizen-foo-sys/`** with hand-written `extern "C"` declarations.
 3. **Create `crates/tizen-foo/`** with the safe Rust API.
-4. **Add an example** under `crates/tizen-foo/examples/` gated on `target_vendor = "tizen"`.
+4. **Add an example** under `crates/tizen-foo/examples/` gated on `cfg(tizen)`.
 5. **Update the status table** in the root [`README.md`](./README.md).
 6. **Open a PR** with on-device verification logs.
 

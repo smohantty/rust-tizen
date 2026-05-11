@@ -1,4 +1,4 @@
-use log::Level;
+use log::{Level, LevelFilter};
 use tizen_dlog_sys::log_priority;
 
 pub(crate) fn level_to_priority(level: Level) -> log_priority {
@@ -8,6 +8,13 @@ pub(crate) fn level_to_priority(level: Level) -> log_priority {
         Level::Info => log_priority::DLOG_INFO,
         Level::Debug => log_priority::DLOG_DEBUG,
         Level::Trace => log_priority::DLOG_VERBOSE,
+    }
+}
+
+pub(crate) fn level_filter_to_priority(filter: LevelFilter) -> log_priority {
+    match filter.to_level() {
+        Some(level) => level_to_priority(level),
+        None => log_priority::DLOG_SILENT,
     }
 }
 

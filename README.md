@@ -78,18 +78,21 @@ On a Tizen device, view the output with `dlogutil MyApp:* Network:* '*:S'`.
 
 ## Building for Tizen
 
-You'll need a Tizen sysroot (Tizen Studio or a GBS rootstrap) and a `.cargo/config.toml`
-that points the linker at it. Step-by-step instructions:
+Use [`cargo-tizen`](https://github.com/Tizen-AIOS/cargo-tizen) — it
+provisions the sysroot, sets up the cross toolchain, and injects the
+`cfg(tizen)` flag this workspace's crates gate on. See
 [`docs/tizen-target-setup.md`](./docs/tizen-target-setup.md).
 
 Quick version:
 
 ```bash
-rustup target add armv7l-tizen-linux-gnueabi   # or use a custom target JSON
-cargo build --release --target armv7l-tizen-linux-gnueabi
-sdb push target/armv7l-tizen-linux-gnueabi/release/<your-binary> /tmp/
-sdb shell /tmp/<your-binary>
+cargo tizen build -A armv7l --release   # or: -A aarch64
+sdb push target/tizen/<arch>/cargo/<rust-triple>/release/<your-binary> /opt/usr/
+sdb shell /opt/usr/<your-binary>
 ```
+
+For an end-to-end consumer example (depends on this repo via git, opts into
+the `dlog` feature), see [`examples/hello-dlog/`](./examples/hello-dlog/).
 
 ## Project layout
 

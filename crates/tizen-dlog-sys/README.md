@@ -22,17 +22,17 @@ pub enum log_id_t { LOG_ID_INVALID, LOG_ID_MAIN, LOG_ID_RADIO, LOG_ID_SYSTEM,
 
 extern "C" {
     pub fn dlog_print(prio, tag, fmt, ...) -> c_int;
-    pub fn dlog_print_raw(log_id, prio, tag, fmt, ...) -> c_int;
+    pub fn __dlog_print(log_id, prio, tag, fmt, ...) -> c_int;
+    pub fn dlog_set_minimum_priority(prio) -> c_int;
 }
 ```
 
 ## Linking
 
-When the cargo target triple has `target_vendor = "tizen"` (e.g. `armv7l-tizen-linux-gnueabi`,
-`aarch64-tizen-linux-gnu`), this crate dynamically links `libdlog.so`. On other
-targets the FFI declarations exist but the symbols stay unresolved — you can
-`cargo check` and run host-side unit tests, but a binary that actually calls
-into dlog will fail to link off-device.
+When `cfg(tizen)` is set (injected by `cargo tizen build`), this crate
+dynamically links `libdlog.so`. On other builds the FFI declarations exist
+but the symbols stay unresolved — `cargo check` and host-side unit tests
+still work, but a binary that calls into dlog will fail to link off-device.
 
 See [`docs/tizen-target-setup.md`](../../docs/tizen-target-setup.md) for sysroot setup.
 
