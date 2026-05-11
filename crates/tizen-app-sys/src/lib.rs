@@ -58,3 +58,29 @@ extern "C" {
         value: *mut *mut c_char,
     ) -> c_int;
 }
+
+// Service app lifecycle (headless, no UI). Service apps live in
+// `libappcore-agent.so` rather than `libcapi-appfw-application.so`.
+pub type service_app_create_cb = Option<unsafe extern "C" fn(user_data: *mut c_void) -> bool_t>;
+pub type service_app_terminate_cb = Option<unsafe extern "C" fn(user_data: *mut c_void)>;
+pub type service_app_control_cb =
+    Option<unsafe extern "C" fn(app_control: app_control_h, user_data: *mut c_void)>;
+
+#[repr(C)]
+pub struct service_app_lifecycle_callback_s {
+    pub create: service_app_create_cb,
+    pub terminate: service_app_terminate_cb,
+    pub app_control: service_app_control_cb,
+}
+
+#[cfg_attr(tizen, link(name = "appcore-agent", kind = "dylib"))]
+extern "C" {
+    pub fn service_app_main(
+        argc: c_int,
+        argv: *mut *mut c_char,
+        callback: *mut service_app_lifecycle_callback_s,
+        user_data: *mut c_void,
+    ) -> c_int;
+
+    pub fn service_app_exit();
+}

@@ -6,6 +6,7 @@ use tokio::runtime::{Builder, Runtime};
 use crate::app_control::AppControl;
 use crate::error::AppError;
 use crate::lifecycle::{run, Lifecycle};
+use crate::service::{run_service, ServiceLifecycle};
 
 /// Async counterpart of [`Lifecycle`](crate::Lifecycle). Methods can `.await`;
 /// the runtime is owned by [`run_async`] / [`run_async_with`].
@@ -108,6 +109,72 @@ impl<L: AsyncLifecycle> Lifecycle for Adapter<L> {
     }
     fn app_control(&mut self, ctrl: AppControl<'_>) {
         let guard = self.inner.get_mut().expect("AsyncLifecycle mutex poisoned");
+        self.rt.block_on(guard.app_control(ctrl));
+    }
+}
+
+/// Async counterpart of [`ServiceLifecycle`](crate::ServiceLifecycle).
+pub trait AsyncServiceLifecycle: Send + 'static {
+    fn create(&mut self) -> impl Future<Output = Result<(), AppError>> + Send;
+    fn terminate(&mut self) -> impl Future<Output = ()> + Send {
+        async {}
+    }
+    fn app_control(&mut self, _ctrl: AppControl<'_>) -> impl Future<Output = ()> {
+        async {}
+    }
+}
+
+/// Service-app equivalent of [`run_async`]. Owns a tokio runtime and
+/// dispatches into it from `service_app_main` callbacks.
+pub fn run_service_async<L: AsyncServiceLifecycle>(lifecycle: L) -> ! {
+    run_service_async_with(lifecycle, |b| b)
+}
+
+/// Service-app equivalent of [`run_async_with`].
+pub fn run_service_async_with<L, F>(lifecycle: L, configure: F) -> !
+where
+    L: AsyncServiceLifecycle,
+    F: FnOnce(&mut Builder) -> &mut Builder,
+{
+    let mut builder = Builder::new_multi_thread();
+    builder.enable_all();
+    configure(&mut builder);
+    let rt = builder
+        .build()
+        .expect("tizen-app: failed to build tokio runtime");
+
+    let adapter = ServiceAdapter {
+        rt,
+        inner: Mutex::new(lifecycle),
+    };
+    run_service(adapter)
+}
+
+struct ServiceAdapter<L: AsyncServiceLifecycle> {
+    rt: Runtime,
+    inner: Mutex<L>,
+}
+
+impl<L: AsyncServiceLifecycle> ServiceLifecycle for ServiceAdapter<L> {
+    fn create(&mut self) -> Result<(), AppError> {
+        let guard = self
+            .inner
+            .get_mut()
+            .expect("AsyncServiceLifecycle mutex poisoned");
+        self.rt.block_on(guard.create())
+    }
+    fn terminate(&mut self) {
+        let guard = self
+            .inner
+            .get_mut()
+            .expect("AsyncServiceLifecycle mutex poisoned");
+        self.rt.block_on(guard.terminate());
+    }
+    fn app_control(&mut self, ctrl: AppControl<'_>) {
+        let guard = self
+            .inner
+            .get_mut()
+            .expect("AsyncServiceLifecycle mutex poisoned");
         self.rt.block_on(guard.app_control(ctrl));
     }
 }

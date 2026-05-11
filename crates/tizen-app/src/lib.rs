@@ -33,6 +33,7 @@
 mod app_control;
 mod error;
 mod lifecycle;
+mod service;
 
 #[cfg(feature = "tokio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
@@ -41,7 +42,11 @@ mod tokio_runtime;
 pub use app_control::AppControl;
 pub use error::AppError;
 pub use lifecycle::{run, Lifecycle};
+pub use service::{run_service, ServiceLifecycle};
 
 #[cfg(feature = "tokio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
-pub use tokio_runtime::{run_async, run_async_with, AsyncLifecycle};
+pub use tokio_runtime::{
+    run_async, run_async_with, run_service_async, run_service_async_with, AsyncLifecycle,
+    AsyncServiceLifecycle,
+};

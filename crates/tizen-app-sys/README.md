@@ -10,9 +10,15 @@ Raw FFI bindings for Tizen's app framework — `ui_app_main` lifecycle and
 
 ```rust
 extern "C" {
+    // UI app (libcapi-appfw-application.so)
     pub fn ui_app_main(argc, argv, callback, user_data) -> c_int;
     pub fn ui_app_exit();
 
+    // Service app (libappcore-agent.so)
+    pub fn service_app_main(argc, argv, callback, user_data) -> c_int;
+    pub fn service_app_exit();
+
+    // app_control (libcapi-appfw-app-control.so)
     pub fn app_control_clone(clone, app_control) -> c_int;
     pub fn app_control_destroy(app_control) -> c_int;
     pub fn app_control_get_operation(app_control, operation) -> c_int;
@@ -24,9 +30,10 @@ extern "C" {
 
 ## Linking
 
-Under `cfg(tizen)` this crate links `libcapi-appfw-application.so` and
-`libcapi-appfw-app-control.so`. Off-target the declarations exist but no
-library is requested, so `cargo check` works without a sysroot.
+Under `cfg(tizen)` this crate links `libcapi-appfw-application.so`,
+`libcapi-appfw-app-control.so`, and `libappcore-agent.so`. Off-target the
+declarations exist but no library is requested, so `cargo check` works
+without a sysroot.
 
 ## License
 

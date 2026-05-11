@@ -24,8 +24,9 @@ are listed in [`README.md`](README.md).
 | `crates/tizen-app/`        | App lifecycle + `app_control`, optional `tokio` feature |
 | `crates/tizen-app-sys/`    | Raw FFI for `ui_app_main` / `app_control` (`#![no_std]`) |
 | `examples/hello-dlog/`     | Standalone consumer template — `dlog`                  |
-| `examples/hello-app/`      | Standalone consumer template — sync `Lifecycle`        |
-| `examples/hello-app-tokio/`| Standalone consumer template — async via `run_async_with` |
+| `examples/hello-app/`      | Standalone consumer template — sync UI `Lifecycle`     |
+| `examples/hello-app-tokio/`| Standalone consumer template — async UI via `run_async_with` |
+| `examples/hello-service-app/` | Standalone consumer template — sync `ServiceLifecycle` (headless) |
 | `docs/`                    | Cross-compile setup, contribution guide                |
 | `scripts/`                 | Validation entry points (`precommit.sh`)               |
 

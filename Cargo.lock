@@ -106,6 +106,7 @@ version = "0.1.0"
 name = "tizen-dlog"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "log",
  "tizen-dlog-sys",
 ]

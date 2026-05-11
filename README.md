@@ -98,11 +98,14 @@ End-to-end consumer examples (each is a standalone crate that depends on
 this repo via git and opts into specific features):
 
 - [`examples/hello-dlog/`](./examples/hello-dlog/) — `dlog` feature.
-- [`examples/hello-app/`](./examples/hello-app/) — `app` + `dlog`, sync
-  [`Lifecycle`](./crates/tizen-app/src/lifecycle.rs) trait.
-- [`examples/hello-app-tokio/`](./examples/hello-app-tokio/) — `app-tokio`
-  + `dlog`, async `AsyncLifecycle` driven by `run_async_with` (custom
-  tokio runtime config).
+- [`examples/hello-app/`](./examples/hello-app/) — `app` feature, sync UI
+  [`Lifecycle`](./crates/tizen-app/src/lifecycle.rs) (`ui_app_main`).
+- [`examples/hello-app-tokio/`](./examples/hello-app-tokio/) — `app-tokio`,
+  async `AsyncLifecycle` driven by `run_async_with` (custom tokio
+  runtime config).
+- [`examples/hello-service-app/`](./examples/hello-service-app/) — `app`
+  feature, sync [`ServiceLifecycle`](./crates/tizen-app/src/service.rs)
+  (`service_app_main`, headless).
 
 ## Project layout
 

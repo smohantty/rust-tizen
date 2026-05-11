@@ -4,7 +4,7 @@ Safe Rust wrapper over Tizen's app framework: lifecycle callbacks
 (`create`/`pause`/`resume`/`terminate`/`app_control`) plus a tokio
 integration behind a feature flag.
 
-## Sync usage
+## UI application (sync)
 
 ```rust
 use tizen_app::{AppControl, AppError, Lifecycle};
@@ -24,7 +24,30 @@ fn main() {
 }
 ```
 
-## Async usage (`tokio` feature)
+## Service application (sync, headless)
+
+```rust
+use tizen_app::{AppControl, AppError, ServiceLifecycle};
+
+struct MyService;
+
+impl ServiceLifecycle for MyService {
+    fn create(&mut self) -> Result<(), AppError> { Ok(()) }
+    fn app_control(&mut self, ctrl: AppControl<'_>) {
+        log::info!("op={:?} uri={:?}", ctrl.operation(), ctrl.uri());
+    }
+}
+
+fn main() {
+    tizen_app::run_service(MyService);
+}
+```
+
+Service apps use `service_app_main` (from `libappcore-agent.so`) — no UI,
+no Wayland, no `pause` / `resume`. They run in any headless environment a
+service is permitted to start in.
+
+## Async (`tokio` feature)
 
 ```toml
 tizen-app = { version = "0.1", features = ["tokio"] }
@@ -57,11 +80,18 @@ tizen_app::run_async_with(MyApp, |b| {
 });
 ```
 
+Service-app equivalents — `run_service_async` and `run_service_async_with`
+with the [`AsyncServiceLifecycle`] trait — follow the same pattern.
+
 ## Host fallback
 
-On non-Tizen builds, `run` / `run_async` simulate the lifecycle:
-`create → resume → (wait for SIGINT/SIGTERM) → pause → terminate`. Useful
-for exercising app logic on Linux without flashing a device.
+On non-Tizen builds, the wrappers simulate the lifecycle so consumer apps
+can be exercised on plain Linux:
+
+- `run` / `run_async`:   `create → resume → SIGINT/SIGTERM → pause → terminate`
+- `run_service` / `run_service_async`:  `create → SIGINT/SIGTERM → terminate`
+
+Useful for iterating on app logic without flashing a device.
 
 ## License
 
