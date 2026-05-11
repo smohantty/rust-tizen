@@ -3,6 +3,7 @@ use std::ffi::CString;
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
 use tizen_dlog_sys as sys;
 
+#[cfg(tizen)]
 use crate::priority::level_to_priority;
 use crate::tag::{self, TagStrategy};
 
@@ -10,6 +11,7 @@ use crate::tag::{self, TagStrategy};
 pub use sys::log_id_t as LogId;
 
 /// A logger that forwards `log` records to Tizen's dlog system.
+#[cfg_attr(not(tizen), allow(dead_code))]
 pub struct DlogLogger {
     default_tag: CString,
     level: LevelFilter,
@@ -85,6 +87,7 @@ impl DlogLoggerBuilder {
     pub fn install(self) -> Result<(), SetLoggerError> {
         let logger = self.build();
         let max_level = logger.level;
+        #[cfg(tizen)]
         unsafe {
             sys::dlog_set_minimum_priority(crate::priority::level_filter_to_priority(max_level));
         }
@@ -110,26 +113,53 @@ impl Log for DlogLogger {
             .expect("default_tag is sanitised UTF-8 with no NULs");
         let tag_str = tag::resolve(self.tag_strategy, record.target(), default_tag_str);
 
-        // Reuse the pre-built default-tag CString when possible to avoid allocating
-        // on the hot path. Otherwise build a fresh CString that lives until the end
-        // of this function, keeping `tag_ptr` valid for the FFI call.
-        let tag_owned;
-        let tag_ptr = if tag_str == default_tag_str {
-            self.default_tag.as_ptr()
-        } else {
-            tag_owned = sanitise_to_cstring(tag_str);
-            tag_owned.as_ptr()
-        };
+        #[cfg(tizen)]
+        {
+            // Reuse the pre-built default-tag CString when possible to avoid
+            // allocating on the hot path. Otherwise build a fresh CString that
+            // lives until the end of this scope, keeping `tag_ptr` valid for the
+            // FFI call.
+            let tag_owned;
+            let tag_ptr = if tag_str == default_tag_str {
+                self.default_tag.as_ptr()
+            } else {
+                tag_owned = sanitise_to_cstring(tag_str);
+                tag_owned.as_ptr()
+            };
+            let msg = sanitise_to_cstring(&record.args().to_string());
+            let prio = level_to_priority(record.level());
+            unsafe {
+                sys::__dlog_print(self.log_id, prio, tag_ptr, c"%s".as_ptr(), msg.as_ptr());
+            }
+        }
 
-        let msg = sanitise_to_cstring(&record.args().to_string());
-        let prio = level_to_priority(record.level());
-
-        unsafe {
-            sys::__dlog_print(self.log_id, prio, tag_ptr, c"%s".as_ptr(), msg.as_ptr());
+        #[cfg(not(tizen))]
+        {
+            // Off-target fallback: write to stderr so host builds (`cargo run`
+            // on Linux, CI, dev loops without a device) still produce visible
+            // log output without forcing every consumer to gate calls on
+            // `cfg(tizen)`.
+            eprintln!(
+                "{}/{}: {}",
+                level_letter(record.level()),
+                tag_str,
+                record.args()
+            );
         }
     }
 
     fn flush(&self) {}
+}
+
+#[cfg(not(tizen))]
+fn level_letter(level: log::Level) -> char {
+    match level {
+        log::Level::Error => 'E',
+        log::Level::Warn => 'W',
+        log::Level::Info => 'I',
+        log::Level::Debug => 'D',
+        log::Level::Trace => 'V',
+    }
 }
 
 /// Build a `CString` from a `&str`, replacing any interior NUL bytes with spaces so

@@ -52,6 +52,12 @@ which provisions the rootstrap, configures the linker, and injects
   cargo-tizen injects `--cfg tizen`; `cargo check` on the host does not.
   Do not use `cfg(target_vendor = "tizen")`.
 - **`-sys` crates are `#![no_std]`** with no dependencies beyond `core`.
+- **Safe wrappers must build off-target.** Gate every FFI call site on
+  `cfg(tizen)` and provide a host fallback (no-op, stderr, or equivalent)
+  in the `cfg(not(tizen))` branch. The public API must compile and link
+  on plain Linux so downstream apps don't need cfg gates around
+  `tizen::dlog::*` calls. See `crates/tizen-dlog/src/logger.rs` for the
+  pattern.
 - **`examples/hello-dlog/` is intentionally outside the workspace** and
   depends on `tizen` via `git`, not `path`, so it mirrors real downstream
   consumption. Don't add it to `[workspace.members]`.

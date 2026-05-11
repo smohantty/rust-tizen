@@ -146,25 +146,25 @@ the workspace `[workspace.dependencies]` table.
 - Document panic safety. Public API should not panic on user input.
 - Prefer `RAII` for handles that need cleanup (`impl Drop`).
 - Inline unit tests for any pure logic.
+- **Build off-target.** Gate every FFI call site on `#[cfg(tizen)]` and
+  provide a `#[cfg(not(tizen))]` fallback (no-op, stderr, panic — whatever
+  fits the API). Goal: downstream apps don't have to cfg-gate `tizen::foo::*`
+  calls just to compile on Linux. See `crates/tizen-dlog/src/logger.rs` for
+  the pattern.
 
 ### 4. Add an example
 
 ```rust
 // crates/tizen-foo/examples/hello_foo.rs
 
-#[cfg(tizen)]
 fn main() {
-    // real example here
-}
-
-#[cfg(not(tizen))]
-fn main() {
-    eprintln!("hello_foo: build with `cargo tizen build` to exercise the API.");
+    // exercise the safe wrapper here; the wrapper handles host fallback
+    // internally so the example compiles and runs on plain Linux too.
 }
 ```
 
-The cfg gate lets the example compile (as a stub) on host so `cargo build --examples`
-doesn't fail in CI without a Tizen sysroot.
+The wrapper's own host fallback (see the "safe wrappers" rules above) is
+what lets `cargo build --examples` succeed off-device.
 
 Document the on-device test procedure in the example's doc comment:
 
