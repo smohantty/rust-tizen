@@ -27,35 +27,20 @@ fn main() {
 
 ## Features
 
-| Feature        | Module         | Status     | Backing crate                                        |
-|----------------|----------------|------------|------------------------------------------------------|
-| `dlog`         | `tizen::dlog`  | 🟢 alpha   | [`tizen-dlog`](https://crates.io/crates/tizen-dlog)  |
-| `app`          | `tizen::app`   | 📝 planned | `tizen-app`                                          |
-| `system-info`  | `tizen::system_info` | 📝 planned | `tizen-system-info`                          |
-| `sensor`       | `tizen::sensor`| 📝 planned | `tizen-sensor`                                       |
-| `bundle`       | `tizen::bundle`| 📝 planned | `tizen-bundle`                                       |
-| `notification` | `tizen::notification` | 📝 planned | `tizen-notification`                          |
+| Feature      | Module        | Backing crate                                          |
+|--------------|---------------|--------------------------------------------------------|
+| `dlog`       | `tizen::dlog` | [`tizen-dlog`](https://crates.io/crates/tizen-dlog)    |
+| `app`        | `tizen::app`  | [`tizen-app`](https://crates.io/crates/tizen-app)      |
+| `app-tokio`  | `tizen::app`  | [`tizen-app`](https://crates.io/crates/tizen-app) + tokio |
 
-No features are on by default — opt in to the bindings you actually need.
+No features are on by default.
 
-## Umbrella vs direct dependency
-
-Both work, pick whichever fits:
+Equivalent direct-dep form, if you'd rather skip the umbrella:
 
 ```toml
-# Umbrella — single dep, choose features
-tizen = { version = "0.1", features = ["dlog", "app"] }
-```
-
-```toml
-# Direct — depend only on the bindings you use, skip the umbrella
 tizen-dlog = "0.1"
 tizen-app  = "0.1"
 ```
-
-The umbrella is for ergonomic discovery and unified version pinning. The direct
-crates are for users who want their `Cargo.toml` to spell out the exact
-subsystems they touch.
 
 ## License
 

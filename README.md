@@ -1,20 +1,14 @@
 # rust-tizen
 
-Idiomatic Rust bindings to the Tizen platform — built incrementally as a monorepo of focused, single-purpose crates.
-
-> **Status: early.** `tizen-dlog` (logging) is the inaugural binding. More are planned. Contributions welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-
-## Why
-
-Tizen ships a rich set of native C APIs (logging, app lifecycle, sensors, system info, …) but no first-class Rust story. Today, integrating Rust into a Tizen app means hand-writing FFI for every library you touch. This project's goal is to make that integration *one cargo line per subsystem*:
+Platform bindings so a Rust app can target Tizen without writing FFI plumbing.
+Wrap each subsystem once, depend on a single cargo line, reuse everywhere.
 
 ```toml
 [dependencies]
-# Umbrella: opt into the bindings you need by feature
 tizen = { version = "0.1", features = ["dlog"] }
 ```
 
-…with safe wrappers, `log`/`tracing` integration where applicable, and consistent conventions across every binding.
+> **Status: early.** Contributions welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## Crates
 
@@ -23,10 +17,6 @@ tizen = { version = "0.1", features = ["dlog"] }
 | [`tizen`]              | `0.1.0`   | 🟢 alpha   | —                           | Umbrella; re-exports each binding behind a feature |
 | [`tizen-dlog`]         | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | `log` facade → Tizen `dlogutil`                  |
 | [`tizen-app`]          | `0.1.0`   | 🟢 alpha   | `libcapi-appfw-application` | App lifecycle + `app_control`, optional `tokio`  |
-| `tizen-system-info`    | —         | 📝 planned | `libcapi-system-info`       | Device capabilities, OS metadata                 |
-| `tizen-sensor`         | —         | 📝 planned | `libcapi-system-sensor`     | Accelerometer, gyro, light, …                    |
-| `tizen-bundle`         | —         | 📝 planned | `libbundle`                 | Bundle (key-value) IPC payloads                  |
-| `tizen-notification`   | —         | 📝 planned | `libnotification`           | System notifications                             |
 
 **Status legend:** 📝 planned · 🟡 in progress · 🟢 alpha · 🔵 beta · ✅ stable
 
@@ -160,19 +150,9 @@ documented in `CHANGELOG.md` for each affected crate.
 
 ## Contributing
 
-We're actively looking for contributors who can wrap additional Tizen APIs.
-The recipe for adding a new binding is short and well-defined — see
-[`docs/adding-a-binding.md`](./docs/adding-a-binding.md) and
-[`CONTRIBUTING.md`](./CONTRIBUTING.md).
-
-Concrete asks:
-
-- **`tizen-app`** — wrap `libcapi-appfw-application` so Rust apps can hook into
-  the Tizen app lifecycle (create, pause, resume, terminate, app_control events).
-- **`tizen-system-info`** — wrap `libcapi-system-info` to expose device model, OS
-  version, and runtime capabilities.
-- **Cross-compile CI** — figure out how to run `cargo check` against a Tizen
-  sysroot in GitHub Actions (currently only host CI runs).
+The recipe for adding a new binding is in
+[`docs/adding-a-binding.md`](./docs/adding-a-binding.md); general PR rules
+in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## License
 
