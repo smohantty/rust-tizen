@@ -44,43 +44,25 @@ Cross-builds require [`cargo-tizen`](https://github.com/Tizen-AIOS/cargo-tizen),
 which provisions the rootstrap, configures the linker, and injects
 `--cfg tizen`.
 
-## Tizen-specific invariants
+## Workspace conventions
 
-- **Activation flag is `cfg(tizen)`.** Gate Tizen-only `link(...)`
-  directives on it (`#[cfg_attr(tizen, link(name = "dlog", kind = "dylib"))]`).
-  Do not use `cfg(target_vendor = "tizen")`; it's been removed everywhere.
-- **`-sys` crates are `#![no_std]`** with no deps beyond `core::ffi`.
-- **dlog FFI:** `dlog_print`, `__dlog_print` (private symbol; lets you pick
-  `log_id_t`), `dlog_set_minimum_priority`. `dlog_print_raw` is a header
-  macro on the C side, not an exported symbol — do not declare it.
-- **64-bit Tizen libraries live in `usr/lib64`.** cargo-tizen passes the
-  matching `-L` flag automatically.
-- **`/tmp` is mounted `noexec` on Tizen.** Deploy binaries to
-  `/opt/usr/<name>` (or another exec-allowed mount) before running.
+- **`cfg(tizen)` is the activation flag.** Gate every Tizen-only
+  `#[link(...)]` directive on it
+  (`#[cfg_attr(tizen, link(name = "dlog", kind = "dylib"))]`).
+  cargo-tizen injects `--cfg tizen`; `cargo check` on the host does not.
+  Do not use `cfg(target_vendor = "tizen")`.
+- **`-sys` crates are `#![no_std]`** with no dependencies beyond `core`.
+- **`examples/hello-dlog/` is intentionally outside the workspace** and
+  depends on `tizen` via `git`, not `path`, so it mirrors real downstream
+  consumption. Don't add it to `[workspace.members]`.
+
+Library-specific details (FFI symbol choice, on-device deploy paths,
+rootstrap layout) live in the relevant crate or in `docs/`, not here.
 
 ## Adding a new binding
 
-See [`docs/adding-a-binding.md`](docs/adding-a-binding.md). Short version:
-
-1. Open a tracking issue.
-2. Create `crates/tizen-foo-sys/` (raw FFI) and `crates/tizen-foo/` (safe wrapper).
-3. Wire the umbrella: feature in `crates/tizen/Cargo.toml`, re-export in
-   `crates/tizen/src/lib.rs`, workspace dep in root `Cargo.toml`.
-4. Add a status-table row in [`README.md`](README.md).
-5. Add an in-crate example gated on `#[cfg(tizen)]`.
-6. PR body must include the on-device transcript.
-
-## Common pitfalls
-
-- **Forgetting `#[cfg_attr(tizen, link(...))]`** on `-sys` extern blocks.
-  Either host CI fails (no libfoo on host) or device builds drop the link.
-- **Declaring header macros as FFI symbols.** Check `nm -D` against the
-  actual `.so` in the rootstrap.
-- **Calling C variadics with user-supplied format strings.** Pre-format in
-  Rust and pass `c"%s"` as the format — see `tizen-dlog`.
-- **Editing `examples/hello-dlog/` as if it were a workspace member.**
-  It is excluded from the workspace on purpose; its dep on `tizen` is via
-  `git`, not `path`, so it mirrors real downstream consumption.
+Follow [`docs/adding-a-binding.md`](docs/adding-a-binding.md). The PR must
+include an on-device verification transcript.
 
 ## Definition of done
 
