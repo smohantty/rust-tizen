@@ -8,7 +8,7 @@ rust-version = "1.80"
 publish = false
 
 [dependencies]
-tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["app-tokio", "dlog"] }
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["app-tokio"] }
 log = "0.4"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "macros", "signal"] }
 
