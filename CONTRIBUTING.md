@@ -33,8 +33,8 @@ Short version:
 
 Every PR must:
 
-- [ ] Pass CI: `cargo test`, `cargo clippy --all-targets -- -D warnings`,
-      `cargo fmt --check`, `cargo doc`.
+- [ ] Pass `./scripts/precommit.sh` (runs `cargo fmt --check`,
+      `cargo check`, `cargo clippy -- -D warnings`, and `cargo test`).
 - [ ] Include unit tests for any pure logic (level/error mapping, parsing,
       tag resolution, etc.) that runs on the host without a device.
 - [ ] Document any unsafe block with a `// SAFETY:` comment explaining why the

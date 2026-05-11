@@ -103,12 +103,25 @@ rust-tizen/
 │   ├── tizen/                  # umbrella; re-exports bindings via cargo features
 │   ├── tizen-dlog-sys/         # raw FFI for libdlog
 │   └── tizen-dlog/             # safe wrapper + log::Log impl
+├── examples/
+│   └── hello-dlog/             # standalone consumer template (git dep)
 ├── docs/
 │   ├── adding-a-binding.md     # how to contribute a new tizen-foo crate
 │   └── tizen-target-setup.md   # cross-compile setup
+├── scripts/
+│   └── precommit.sh            # cargo fmt + check + clippy + test
+├── AGENTS.md                   # entry point for coding agents (Codex / Claude)
+├── CLAUDE.md                   # pointer to AGENTS.md
 ├── CONTRIBUTING.md
 └── README.md
 ```
+
+## Working with coding agents
+
+Codex and Claude Code both read [`AGENTS.md`](./AGENTS.md) at the repo
+root for build commands, layout, and Tizen-specific invariants
+(`cfg(tizen)`, dlog FFI, `/opt/usr` deploy path, …). Keep that file in
+sync when build commands or workflows change.
 
 Every binding follows the same shape:
 
