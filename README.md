@@ -106,6 +106,9 @@ this repo via git and opts into specific features):
 - [`examples/hello-service-app/`](./examples/hello-service-app/) — `app`
   feature, sync [`ServiceLifecycle`](./crates/tizen-app/src/service.rs)
   (`service_app_main`, headless).
+- [`examples/hello-service-app-tokio/`](./examples/hello-service-app-tokio/)
+  — `app-tokio`, async `AsyncServiceLifecycle` driven by
+  `run_service_async_with` (headless + tokio runtime).
 
 ## Project layout
 

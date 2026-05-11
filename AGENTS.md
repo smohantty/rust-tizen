@@ -27,6 +27,7 @@ are listed in [`README.md`](README.md).
 | `examples/hello-app/`      | Standalone consumer template — sync UI `Lifecycle`     |
 | `examples/hello-app-tokio/`| Standalone consumer template — async UI via `run_async_with` |
 | `examples/hello-service-app/` | Standalone consumer template — sync `ServiceLifecycle` (headless) |
+| `examples/hello-service-app-tokio/` | Standalone consumer template — async `ServiceLifecycle` (headless + tokio) |
 | `docs/`                    | Cross-compile setup, contribution guide                |
 | `scripts/`                 | Validation entry points (`precommit.sh`)               |
 
