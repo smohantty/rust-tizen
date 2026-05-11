@@ -20,7 +20,9 @@ tokio = ["dep:tokio"]
 log = { workspace = true }
 tizen-app-sys = { workspace = true }
 libc = "0.2"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "signal", "sync", "macros"], optional = true }
+# tizen-app only uses tokio::runtime::{Builder,Runtime}. rt-multi-thread
+# implicitly enables rt; no signal / sync / macros needed.
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
 
 [lints]
 workspace = true
