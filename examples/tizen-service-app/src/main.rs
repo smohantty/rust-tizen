@@ -1,24 +1,24 @@
 use log::LevelFilter;
 use tizen::app::{AppControl, AppError, ServiceLifecycle};
 
-struct HelloService {
+struct ServiceApp {
     ticks: u32,
 }
 
-impl ServiceLifecycle for HelloService {
+impl ServiceLifecycle for ServiceApp {
     fn create(&mut self) -> Result<(), AppError> {
-        log::info!("hello-service-app: create");
+        log::info!("tizen-service-app: create");
         Ok(())
     }
 
     fn terminate(&mut self) {
-        log::info!("hello-service-app: terminate (ticks={})", self.ticks);
+        log::info!("tizen-service-app: terminate (ticks={})", self.ticks);
     }
 
     fn app_control(&mut self, ctrl: AppControl<'_>) {
         self.ticks += 1;
         log::info!(
-            "hello-service-app: app_control #{} op={:?} uri={:?}",
+            "tizen-service-app: app_control #{} op={:?} uri={:?}",
             self.ticks,
             ctrl.operation(),
             ctrl.uri()
@@ -49,5 +49,5 @@ fn main() {
     let _ = log::set_logger(&LOGGER);
     log::set_max_level(LevelFilter::Trace);
 
-    tizen::app::run_service(HelloService { ticks: 0 });
+    tizen::app::run_service(ServiceApp { ticks: 0 });
 }

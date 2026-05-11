@@ -1,44 +1,40 @@
 use std::time::Duration;
 
 use log::LevelFilter;
-use tizen::app::{AppControl, AppError, AsyncServiceLifecycle};
+use tizen::app::{AppControl, AppError, AsyncLifecycle};
 
-struct HelloService {
-    ticks: u32,
-}
+struct UiApp;
 
-impl AsyncServiceLifecycle for HelloService {
+impl AsyncLifecycle for UiApp {
     async fn create(&mut self) -> Result<(), AppError> {
-        log::info!("hello-service-app-tokio: create");
-        // Async work inside a lifecycle callback.
+        log::info!("tizen-ui-app-tokio: create");
         tokio::time::sleep(Duration::from_millis(50)).await;
-        log::info!("hello-service-app-tokio: 50ms async sleep done");
-        // Spawn a background task that lives across callbacks on tokio
-        // workers, independent of service_app_main's main loop.
-        tokio::spawn(async {
-            for i in 1..=3 {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                log::info!("hello-service-app-tokio: bg heartbeat #{i}");
-            }
-        });
+        log::info!("tizen-ui-app-tokio: 50ms async sleep done");
         Ok(())
     }
 
+    async fn resume(&mut self) {
+        log::info!("tizen-ui-app-tokio: resume");
+        tokio::spawn(async {
+            for i in 1..=3 {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                log::info!("tizen-ui-app-tokio: bg tick {i}");
+            }
+        });
+    }
+
+    async fn pause(&mut self) {
+        log::info!("tizen-ui-app-tokio: pause");
+    }
+
     async fn terminate(&mut self) {
-        log::info!(
-            "hello-service-app-tokio: terminate (ticks={})",
-            self.ticks
-        );
+        log::info!("tizen-ui-app-tokio: terminate");
     }
 
     async fn app_control(&mut self, ctrl: AppControl<'_>) {
-        self.ticks += 1;
         let op = ctrl.operation();
         let uri = ctrl.uri();
-        log::info!(
-            "hello-service-app-tokio: app_control #{} op={op:?} uri={uri:?}",
-            self.ticks
-        );
+        log::info!("tizen-ui-app-tokio: app_control op={op:?} uri={uri:?}");
     }
 }
 
@@ -65,7 +61,7 @@ fn main() {
     let _ = log::set_logger(&LOGGER);
     log::set_max_level(LevelFilter::Trace);
 
-    tizen::app::run_service_async_with(HelloService { ticks: 0 }, |b| {
-        b.worker_threads(2).thread_name("hello-service-worker")
+    tizen::app::run_async_with(UiApp, |b| {
+        b.worker_threads(2).thread_name("tizen-ui-app-worker")
     });
 }

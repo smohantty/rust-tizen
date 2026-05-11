@@ -5,5 +5,5 @@ profile = "mobile"
 platform_version = "10.0"
 
 [package]
-name = "hello-app"
-packages = ["hello-app"]
+name = "tizen-ui-app-tokio"
+packages = ["tizen-ui-app-tokio"]

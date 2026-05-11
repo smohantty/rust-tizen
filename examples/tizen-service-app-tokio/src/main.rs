@@ -1,40 +1,41 @@
 use std::time::Duration;
 
 use log::LevelFilter;
-use tizen::app::{AppControl, AppError, AsyncLifecycle};
+use tizen::app::{AppControl, AppError, AsyncServiceLifecycle};
 
-struct HelloApp;
+struct ServiceApp {
+    ticks: u32,
+}
 
-impl AsyncLifecycle for HelloApp {
+impl AsyncServiceLifecycle for ServiceApp {
     async fn create(&mut self) -> Result<(), AppError> {
-        log::info!("hello-app-tokio: create");
+        log::info!("tizen-service-app-tokio: create");
         tokio::time::sleep(Duration::from_millis(50)).await;
-        log::info!("hello-app-tokio: 50ms async sleep done");
-        Ok(())
-    }
-
-    async fn resume(&mut self) {
-        log::info!("hello-app-tokio: resume");
+        log::info!("tizen-service-app-tokio: 50ms async sleep done");
         tokio::spawn(async {
             for i in 1..=3 {
                 tokio::time::sleep(Duration::from_secs(1)).await;
-                log::info!("hello-app-tokio: bg tick {i}");
+                log::info!("tizen-service-app-tokio: bg heartbeat #{i}");
             }
         });
-    }
-
-    async fn pause(&mut self) {
-        log::info!("hello-app-tokio: pause");
+        Ok(())
     }
 
     async fn terminate(&mut self) {
-        log::info!("hello-app-tokio: terminate");
+        log::info!(
+            "tizen-service-app-tokio: terminate (ticks={})",
+            self.ticks
+        );
     }
 
     async fn app_control(&mut self, ctrl: AppControl<'_>) {
+        self.ticks += 1;
         let op = ctrl.operation();
         let uri = ctrl.uri();
-        log::info!("hello-app-tokio: app_control op={op:?} uri={uri:?}");
+        log::info!(
+            "tizen-service-app-tokio: app_control #{} op={op:?} uri={uri:?}",
+            self.ticks
+        );
     }
 }
 
@@ -61,7 +62,7 @@ fn main() {
     let _ = log::set_logger(&LOGGER);
     log::set_max_level(LevelFilter::Trace);
 
-    tizen::app::run_async_with(HelloApp, |b| {
-        b.worker_threads(2).thread_name("hello-app-worker")
+    tizen::app::run_service_async_with(ServiceApp { ticks: 0 }, |b| {
+        b.worker_threads(2).thread_name("tizen-service-app-worker")
     });
 }

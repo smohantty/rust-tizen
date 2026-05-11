@@ -1,7 +1,7 @@
 [workspace]
 
 [package]
-name = "hello-service-app"
+name = "tizen-service-app"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"

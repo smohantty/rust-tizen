@@ -5,5 +5,5 @@ profile = "mobile"
 platform_version = "10.0"
 
 [package]
-name = "hello-service-app"
-packages = ["hello-service-app"]
+name = "tizen-ui-app"
+packages = ["tizen-ui-app"]

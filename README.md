@@ -98,15 +98,16 @@ End-to-end consumer examples (each is a standalone crate that depends on
 this repo via git and opts into specific features):
 
 - [`examples/hello-dlog/`](./examples/hello-dlog/) — `dlog` feature.
-- [`examples/hello-app/`](./examples/hello-app/) — `app` feature, sync UI
-  [`Lifecycle`](./crates/tizen-app/src/lifecycle.rs) (`ui_app_main`).
-- [`examples/hello-app-tokio/`](./examples/hello-app-tokio/) — `app-tokio`,
-  async `AsyncLifecycle` driven by `run_async_with` (custom tokio
-  runtime config).
-- [`examples/hello-service-app/`](./examples/hello-service-app/) — `app`
+- [`examples/tizen-ui-app/`](./examples/tizen-ui-app/) — `app` feature,
+  sync UI [`Lifecycle`](./crates/tizen-app/src/lifecycle.rs)
+  (`ui_app_main`).
+- [`examples/tizen-ui-app-tokio/`](./examples/tizen-ui-app-tokio/) —
+  `app-tokio`, async `AsyncLifecycle` driven by `run_async_with` (custom
+  tokio runtime config).
+- [`examples/tizen-service-app/`](./examples/tizen-service-app/) — `app`
   feature, sync [`ServiceLifecycle`](./crates/tizen-app/src/service.rs)
   (`service_app_main`, headless).
-- [`examples/hello-service-app-tokio/`](./examples/hello-service-app-tokio/)
+- [`examples/tizen-service-app-tokio/`](./examples/tizen-service-app-tokio/)
   — `app-tokio`, async `AsyncServiceLifecycle` driven by
   `run_service_async_with` (headless + tokio runtime).
 
