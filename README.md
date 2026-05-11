@@ -22,9 +22,7 @@ tizen = { version = "0.1", features = ["dlog"] }
 |------------------------|-----------|------------|-----------------------------|--------------------------------------------------|
 | [`tizen`]              | `0.1.0`   | 🟢 alpha   | —                           | Umbrella; re-exports each binding behind a feature |
 | [`tizen-dlog`]         | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | `log` facade → Tizen `dlogutil`                  |
-| [`tizen-dlog-sys`]     | `0.1.0`   | 🟢 alpha   | `libdlog.so`                | Raw FFI bindings for `dlog.h`                    |
 | [`tizen-app`]          | `0.1.0`   | 🟢 alpha   | `libcapi-appfw-application` | App lifecycle + `app_control`, optional `tokio`  |
-| [`tizen-app-sys`]      | `0.1.0`   | 🟢 alpha   | `libcapi-appfw-application` | Raw FFI for `ui_app_main` / `app_control`        |
 | `tizen-system-info`    | —         | 📝 planned | `libcapi-system-info`       | Device capabilities, OS metadata                 |
 | `tizen-sensor`         | —         | 📝 planned | `libcapi-system-sensor`     | Accelerometer, gyro, light, …                    |
 | `tizen-bundle`         | —         | 📝 planned | `libbundle`                 | Bundle (key-value) IPC payloads                  |
@@ -32,11 +30,14 @@ tizen = { version = "0.1", features = ["dlog"] }
 
 **Status legend:** 📝 planned · 🟡 in progress · 🟢 alpha · 🔵 beta · ✅ stable
 
+Each safe wrapper has a companion `*-sys` crate
+([`tizen-dlog-sys`](./crates/tizen-dlog-sys),
+[`tizen-app-sys`](./crates/tizen-app-sys)) holding the raw `extern "C"`
+declarations. End users don't depend on them directly.
+
 [`tizen`]: ./crates/tizen
 [`tizen-dlog`]: ./crates/tizen-dlog
-[`tizen-dlog-sys`]: ./crates/tizen-dlog-sys
 [`tizen-app`]: ./crates/tizen-app
-[`tizen-app-sys`]: ./crates/tizen-app-sys
 
 ## Quick start
 
