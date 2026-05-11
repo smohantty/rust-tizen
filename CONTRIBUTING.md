@@ -29,6 +29,33 @@ Short version:
 5. **Update the status table** in the root [`README.md`](./README.md).
 6. **Open a PR** with on-device verification logs.
 
+## Development workflow
+
+These crates are libraries — there's nothing to deploy as part of the
+inner loop. Iterate on the host:
+
+```sh
+cargo check --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+
+# Or run every gate at once:
+./scripts/precommit.sh
+```
+
+Cross-target compile check (no device needed, just confirms the lib
+builds + links for Tizen):
+
+```sh
+cd examples/tizen-ui-app
+cargo tizen build -A armv7l --release
+```
+
+For on-device validation, push one of the `examples/*` binaries and run
+it. Each example is a self-contained consumer crate that depends on
+this repo via git and exists exactly for this purpose. See its
+`Cargo.toml` and `src/main.rs`.
+
 ## Pull request requirements
 
 Every PR must:
@@ -64,16 +91,10 @@ Every PR must:
   document the on-device verification command in the example's doc comment.
   CI does not run on-device tests yet — verification is part of the PR review.
 
-## Versioning and releases
+## Versioning
 
-All crates currently ship at the same workspace version (`0.1.x`). Release
-process:
-
-1. Bump `version` in `Cargo.toml`.
-2. Update `CHANGELOG.md` (per crate, when we add them).
-3. Tag the release: `vX.Y.Z`.
-4. Maintainers run `cargo publish` for each crate in dependency order
-   (`tizen-foo-sys` before `tizen-foo`).
+All crates share a single workspace version (`0.1.x`). Bump in the root
+`Cargo.toml` and tag the release `vX.Y.Z`.
 
 ## Getting unstuck
 

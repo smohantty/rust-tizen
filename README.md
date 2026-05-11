@@ -69,23 +69,24 @@ Pin to a specific revision with `rev = "<hash>"`, `tag = "<tag>"`, or
 
 On a Tizen device, view the output with `dlogutil MyApp:* Network:* '*:S'`.
 
-## Building for Tizen
+## Building an app that uses these crates
 
-Use [`cargo-tizen`](https://github.com/Tizen-AIOS/cargo-tizen) — it
-provisions the sysroot, sets up the cross toolchain, and injects the
-`cfg(tizen)` flag this workspace's crates gate on. See
-[`docs/tizen-target-setup.md`](./docs/tizen-target-setup.md).
+These crates are libraries — to ship something you write your own app
+crate that depends on them. Use [`cargo-tizen`](https://github.com/Tizen-AIOS/cargo-tizen)
+to cross-compile (it provisions the sysroot, sets up the cross
+toolchain, and injects `cfg(tizen)`); see
+[`docs/tizen-target-setup.md`](./docs/tizen-target-setup.md) for setup.
 
-Quick version:
+In your app crate:
 
 ```bash
 cargo tizen build -A armv7l --release   # or: -A aarch64
-sdb push target/tizen/<arch>/cargo/<rust-triple>/release/<your-binary> /opt/usr/
-sdb shell /opt/usr/<your-binary>
+sdb push target/tizen/<arch>/cargo/<rust-triple>/release/<your-app> /opt/usr/
+sdb shell /opt/usr/<your-app>
 ```
 
-End-to-end consumer examples (each is a standalone crate that depends on
-this repo via git and opts into specific features):
+Each `examples/` subdirectory is a complete consumer crate you can copy
+as a starting point:
 
 - [`examples/hello-dlog/`](./examples/hello-dlog/) — `dlog` feature.
 - [`examples/tizen-ui-app/`](./examples/tizen-ui-app/) — `app` feature,
@@ -136,16 +137,9 @@ Every binding follows the same shape:
 - `tizen-foo/` — safe wrapper, idiomatic Rust API, optional `log`/`tracing` integration.
 - One line added to `tizen/Cargo.toml` (a feature) and one line added to `tizen/src/lib.rs` (a re-export) so the umbrella picks it up.
 
-## Versioning
+## Versioning & MSRV
 
-All crates currently ship at the **same workspace version** (`0.1.0`). This keeps
-the release process simple while the ecosystem is young. Once individual crates
-mature at different rates, we'll move to per-crate versioning.
-
-## MSRV
-
-Rust **1.80** or newer. We may bump conservatively when needed; bumps will be
-documented in `CHANGELOG.md` for each affected crate.
+All crates share a single workspace version (`0.1.x`). MSRV is Rust **1.80**.
 
 ## Contributing
 
