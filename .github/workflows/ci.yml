@@ -79,9 +79,26 @@ jobs:
       - name: cargo doc
         run: cargo doc --workspace --no-deps --all-features
 
-  # TODO: cross-compile check against a Tizen sysroot.
-  # GitHub-hosted runners don't have one available; options:
-  #   1. Download Tizen Studio in CI and configure linker (slow, ~500MB)
-  #   2. Use a custom target JSON + skip linking, just `cargo check`
-  #   3. Self-hosted runner with Tizen device for end-to-end tests
-  # Tracked in: <issue link to be filed>
+  cross-check:
+    name: Cross-check (${{ matrix.target }}, cfg(tizen))
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - armv7-unknown-linux-gnueabihf
+          - aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable with cross target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo check --target ${{ matrix.target }} (cfg tizen)
+        env:
+          RUSTFLAGS: "--cfg tizen"
+        run: cargo check --workspace --all-targets --target ${{ matrix.target }}

@@ -1,5 +1,7 @@
 # rust-tizen
 
+[![CI](https://github.com/smohantty/rust-tizen/actions/workflows/ci.yml/badge.svg)](https://github.com/smohantty/rust-tizen/actions/workflows/ci.yml)
+
 Platform bindings so a Rust app can target Tizen without writing FFI plumbing.
 Wrap each subsystem once, depend on a single cargo line, reuse everywhere.
 
