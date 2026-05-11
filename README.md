@@ -5,10 +5,10 @@ Wrap each subsystem once, depend on a single cargo line, reuse everywhere.
 
 ```toml
 [dependencies]
-tizen = { version = "0.1", features = ["dlog"] }
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["dlog"] }
 ```
 
-> **Status: early.** Contributions welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+> **Status: early.** Not published on crates.io — depend via git. Contributions welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## Crates
 
@@ -37,7 +37,7 @@ Two equivalent paths — pick whichever suits your project:
 
 ```toml
 [dependencies]
-tizen = { version = "0.1", features = ["dlog"] }
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["dlog"] }
 log = "0.4"
 ```
 
@@ -53,7 +53,7 @@ fn main() {
 
 ```toml
 [dependencies]
-tizen-dlog = "0.1"
+tizen-dlog = { git = "https://github.com/smohantty/rust-tizen.git" }
 log = "0.4"
 ```
 
@@ -64,9 +64,8 @@ fn main() {
 }
 ```
 
-Both compile to the same code — the umbrella is a thin re-exporter. Use the
-umbrella when you want one dependency that grows with you; use direct deps
-when you want your `Cargo.toml` to spell out exactly which subsystems you touch.
+Pin to a specific revision with `rev = "<hash>"`, `tag = "<tag>"`, or
+`branch = "<branch>"` (defaults to `main`).
 
 On a Tizen device, view the output with `dlogutil MyApp:* Network:* '*:S'`.
 

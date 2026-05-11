@@ -2,7 +2,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! tizen = { version = "0.1", features = ["dlog"] }
+//! tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["dlog"] }
 //! ```
 //!
 //! | Feature     | Module        | Backing crate            |

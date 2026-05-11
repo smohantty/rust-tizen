@@ -13,7 +13,7 @@ cargo features so you opt into exactly what you need.
 
 ```toml
 [dependencies]
-tizen = { version = "0.1", features = ["dlog"] }
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["dlog"] }
 log = "0.4"
 ```
 
@@ -38,8 +38,8 @@ No features are on by default.
 Equivalent direct-dep form, if you'd rather skip the umbrella:
 
 ```toml
-tizen-dlog = "0.1"
-tizen-app  = "0.1"
+tizen-dlog = { git = "https://github.com/smohantty/rust-tizen.git" }
+tizen-app  = { git = "https://github.com/smohantty/rust-tizen.git" }
 ```
 
 ## License

@@ -49,7 +49,7 @@ Service apps use `service_app_main` (from `libappcore-agent.so`) — no
 ## Async (`tokio` feature)
 
 ```toml
-tizen-app = { version = "0.1", features = ["tokio"] }
+tizen-app = { git = "https://github.com/smohantty/rust-tizen.git", features = ["tokio"] }
 ```
 
 ```rust
