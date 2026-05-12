@@ -32,6 +32,7 @@
 
 mod app_control;
 mod error;
+mod event;
 mod lifecycle;
 mod service;
 
@@ -41,6 +42,7 @@ mod tokio_runtime;
 
 pub use app_control::AppControl;
 pub use error::AppError;
+pub use event::LowMemoryStatus;
 pub use lifecycle::{run, Lifecycle};
 pub use service::{run_service, ServiceLifecycle};
 

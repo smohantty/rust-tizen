@@ -5,6 +5,7 @@ use tokio::runtime::{Builder, Runtime};
 
 use crate::app_control::AppControl;
 use crate::error::AppError;
+use crate::event::LowMemoryStatus;
 use crate::lifecycle::{run, Lifecycle};
 use crate::service::{run_service, ServiceLifecycle};
 
@@ -25,6 +26,18 @@ pub trait AsyncLifecycle: Send + 'static {
     }
 
     fn app_control(&mut self, _ctrl: AppControl<'_>) -> impl Future<Output = ()> {
+        async {}
+    }
+
+    fn low_memory(&mut self, _status: LowMemoryStatus) -> impl Future<Output = ()> + Send {
+        async {}
+    }
+
+    fn language_changed(&mut self, _language: String) -> impl Future<Output = ()> + Send {
+        async {}
+    }
+
+    fn region_format_changed(&mut self, _region_format: String) -> impl Future<Output = ()> + Send {
         async {}
     }
 }
@@ -81,6 +94,18 @@ impl<L: AsyncLifecycle> Lifecycle for Adapter<L> {
         let guard = self.inner.get_mut().expect("AsyncLifecycle mutex poisoned");
         self.rt.block_on(guard.app_control(ctrl));
     }
+    fn low_memory(&mut self, status: LowMemoryStatus) {
+        let guard = self.inner.get_mut().expect("AsyncLifecycle mutex poisoned");
+        self.rt.block_on(guard.low_memory(status));
+    }
+    fn language_changed(&mut self, language: String) {
+        let guard = self.inner.get_mut().expect("AsyncLifecycle mutex poisoned");
+        self.rt.block_on(guard.language_changed(language));
+    }
+    fn region_format_changed(&mut self, region_format: String) {
+        let guard = self.inner.get_mut().expect("AsyncLifecycle mutex poisoned");
+        self.rt.block_on(guard.region_format_changed(region_format));
+    }
 }
 
 /// Async counterpart of [`ServiceLifecycle`](crate::ServiceLifecycle).
@@ -90,6 +115,15 @@ pub trait AsyncServiceLifecycle: Send + 'static {
         async {}
     }
     fn app_control(&mut self, _ctrl: AppControl<'_>) -> impl Future<Output = ()> {
+        async {}
+    }
+    fn low_memory(&mut self, _status: LowMemoryStatus) -> impl Future<Output = ()> + Send {
+        async {}
+    }
+    fn language_changed(&mut self, _language: String) -> impl Future<Output = ()> + Send {
+        async {}
+    }
+    fn region_format_changed(&mut self, _region_format: String) -> impl Future<Output = ()> + Send {
         async {}
     }
 }
@@ -145,5 +179,26 @@ impl<L: AsyncServiceLifecycle> ServiceLifecycle for ServiceAdapter<L> {
             .get_mut()
             .expect("AsyncServiceLifecycle mutex poisoned");
         self.rt.block_on(guard.app_control(ctrl));
+    }
+    fn low_memory(&mut self, status: LowMemoryStatus) {
+        let guard = self
+            .inner
+            .get_mut()
+            .expect("AsyncServiceLifecycle mutex poisoned");
+        self.rt.block_on(guard.low_memory(status));
+    }
+    fn language_changed(&mut self, language: String) {
+        let guard = self
+            .inner
+            .get_mut()
+            .expect("AsyncServiceLifecycle mutex poisoned");
+        self.rt.block_on(guard.language_changed(language));
+    }
+    fn region_format_changed(&mut self, region_format: String) {
+        let guard = self
+            .inner
+            .get_mut()
+            .expect("AsyncServiceLifecycle mutex poisoned");
+        self.rt.block_on(guard.region_format_changed(region_format));
     }
 }

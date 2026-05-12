@@ -10,7 +10,7 @@ publish = false
 [dependencies]
 tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["app-tokio"] }
 log = "0.4"
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "time"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "sync", "time"] }
 
 [profile.release]
 opt-level = "z"
