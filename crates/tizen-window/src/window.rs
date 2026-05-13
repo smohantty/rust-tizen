@@ -95,6 +95,7 @@ impl WindowBuilder {
             tz_policy: display.tz_policy.clone(),
             tbm_client_ptr: display.tbm_client.ptr,
             conn: display.conn.clone(),
+            qh,
         })
     }
 }
@@ -119,6 +120,9 @@ pub struct Window {
     pub(crate) tz_policy: Option<TizenPolicy>,
     pub(crate) tbm_client_ptr: *mut wayland_tbm::wayland_tbm_client,
     pub(crate) conn: Connection,
+    /// Queue handle for this window's surface — needed to register
+    /// `wl_surface.frame` callbacks on the right event queue.
+    pub(crate) qh: QueueHandle<WindowState>,
 }
 
 impl Window {
@@ -131,6 +135,35 @@ impl Window {
     /// etc.)?
     pub fn should_close(&self) -> bool {
         self.state.should_close
+    }
+
+    /// Schedule a redraw at the compositor's next available frame
+    /// (one-shot — call again from the redraw handler to keep
+    /// looping). Registers a `wl_surface.frame` callback; the
+    /// compositor fires it at ~vsync pace via [`Event::RedrawRequested`].
+    ///
+    /// This is the only correct way to do animated rendering on
+    /// Wayland — busy-looping `commit()` calls would just queue
+    /// frames the compositor drops.
+    pub fn request_redraw(&mut self) {
+        // The callback is registered on our queue (qh); the
+        // scanner-generated `frame` returns a `wl_callback` proxy
+        // whose `done` event flips `state.frame_requested = false`
+        // and pushes `Event::RedrawRequested`. We don't hold onto the
+        // callback handle — it auto-destroys on `done`.
+        let _cb = self.surface.frame(&self.qh, ());
+        self.state.frame_requested = true;
+    }
+
+    /// Drain any events the dispatcher has queued for the caller.
+    /// Returns each pending event in arrival order. Empty when
+    /// nothing has happened since the last drain.
+    ///
+    /// In Phase 1.4 this becomes the building block for
+    /// `Display::run` — for now it's the explicit way to consume
+    /// events from the dispatch state.
+    pub fn drain_events(&mut self) -> impl Iterator<Item = crate::Event> + '_ {
+        self.state.pending_events.drain(..)
     }
 
     /// Set the solid colour to paint on the next configure / redraw.
@@ -295,6 +328,16 @@ pub(crate) struct WindowState {
     /// Set once we've fired the `tizen_policy.show/activate/raise`
     /// trio post-paint. Idempotent on subsequent paints.
     pub(crate) policy_shown: bool,
+
+    /// True between a `Window::request_redraw()` call and the matching
+    /// `wl_callback.done` event. Lets us skip duplicate frame
+    /// registrations and tell whether a stale `RedrawRequested` is
+    /// pending.
+    pub(crate) frame_requested: bool,
+
+    /// Events the dispatcher has produced since the last drain. The
+    /// `Window::drain_events` method pulls these out for the caller.
+    pub(crate) pending_events: Vec<crate::Event>,
 }
 
 impl Dispatch<WlSurface, ()> for WindowState {
@@ -375,13 +418,44 @@ impl Dispatch<ZxdgToplevelV6, ()> for WindowState {
         use tizen_window_sys::xdg_shell_v6::zxdg_toplevel_v6::Event;
         match event {
             Event::Configure { width, height, .. } if width > 0 && height > 0 => {
-                state.width = width as u32;
-                state.height = height as u32;
+                let (w, h) = (width as u32, height as u32);
+                if state.width != w || state.height != h {
+                    state.width = w;
+                    state.height = h;
+                    state.pending_events.push(crate::Event::Resized {
+                        width: w,
+                        height: h,
+                    });
+                }
             }
             Event::Close => {
                 state.should_close = true;
+                state.pending_events.push(crate::Event::CloseRequested);
             }
             _ => {}
+        }
+    }
+}
+
+// The `wl_callback` proxy returned by `wl_surface.frame()`. We use
+// `()` user-data and assume all `wl_callback.done` events on our queue
+// are frame callbacks — fine because we don't use `wl_display.sync`
+// or other callback-returning requests on this queue.
+impl Dispatch<wayland_client::protocol::wl_callback::WlCallback, ()> for WindowState {
+    fn event(
+        state: &mut Self,
+        _: &wayland_client::protocol::wl_callback::WlCallback,
+        event: wayland_client::protocol::wl_callback::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        // `done` is the only event the callback emits; it carries a
+        // timestamp we don't currently surface (Phase 1.2: just a
+        // RedrawRequested signal).
+        if let wayland_client::protocol::wl_callback::Event::Done { .. } = event {
+            state.frame_requested = false;
+            state.pending_events.push(crate::Event::RedrawRequested);
         }
     }
 }

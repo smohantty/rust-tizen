@@ -260,6 +260,7 @@ dependencies = [
 name = "tizen-window"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "raw-window-handle",
  "tizen-tbm-sys",
  "tizen-window-sys",

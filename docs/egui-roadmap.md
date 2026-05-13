@@ -85,7 +85,7 @@ What's missing to render egui:
 ┌──────────────────────────────────────────────────────────────┐
 │ Phase 1 — `tizen-window` foundation (no new crates)          │
 │   1.1 ☑ raw-window-handle impls                              │
-│   1.2 ☐ wl_surface.frame callback API                        │
+│   1.2 ☑ wl_surface.frame callback API                        │
 │   1.3 ☐ Repaint on configure (compositor resize)             │
 │   1.4 ☐ Generic Event enum + Display::run helper             │
 │   1.5 ☐ wl_pointer wiring (enter/leave/motion/button/wheel)  │
@@ -117,18 +117,18 @@ choice. No new crates; pure additions to `tizen-window`.
       `&self` via `borrow_raw`. Verified by `cargo check + clippy +
       tests` clean.
 
-- [ ] **1.2 Frame callback API.** `Window::request_redraw()` calls
-      `wl_surface.frame(qh)` to register a callback. When the
-      `wl_callback.done` event arrives the user's redraw closure
-      fires. Public API:
+- [x] **1.2 Frame callback API.** `Window::request_redraw()` calls
+      `wl_surface.frame(&qh, ())` to register a one-shot
+      `wl_callback`. The `Dispatch<WlCallback, ()>` impl pushes
+      `Event::RedrawRequested` into the pending-events queue when
+      `done` fires. Caller drains via `Window::drain_events()`
+      (placeholder until `Display::run` in 1.4 hides this).
 
-  ```rust
-  window.set_redraw_callback(|frame_time_us| { /* draw */ });
-  window.request_redraw();
-  ```
-
-  Each `done` event is one-shot; the callback must call
-  `request_redraw()` again to keep the loop going.
+      Also added the `Event` enum (event.rs, mirroring winit's
+      WindowEvent variants) + `MouseButton` + `ModifiersState`
+      bitflags. `Resized` + `CloseRequested` are wired through the
+      existing `zxdg_toplevel_v6` dispatcher; the rest get filled
+      in by Phases 1.5/1.6.
 
 - [ ] **1.3 Repaint on configure.** When `zxdg_toplevel.configure`
       delivers a non-zero (w, h), update internal size and fire the
