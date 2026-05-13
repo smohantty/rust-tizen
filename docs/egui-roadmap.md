@@ -98,9 +98,12 @@ What's missing to render egui:
 │   2.4 ☑ examples/hello-egl-probe — GO: GLES 3.2 on Mali-G51  │
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 3 — egui hello world                                   │
-│   3.1 ☐ examples/hello-egui-gpu — egui_glow + tizen-egl      │
-│   3.2 ☐ Cross-build, deploy, verify visible on .234          │
+│   3.1 ☑ examples/hello-egui-gpu — egui_glow + tizen-egl      │
+│   3.2 ☑ Verified on .234 — steady 60 FPS on Mali-G51         │
 └──────────────────────────────────────────────────────────────┘
+
+**🎉 Goal hit:** egui renders on Tizen at 60 FPS via the rust-tizen
+stack. See "Phase 3" below for the verification transcript.
 ```
 
 ## Phase 1 — `tizen-window` foundation
@@ -261,43 +264,51 @@ rootstrap, no dlopen needed) and exposes an `EglWindow` that
 The payoff. `examples/hello-egui-gpu/` opens a window, paints an
 animated egui UI via the GPU.
 
-- [ ] **3.1 `hello-egui-gpu` crate.** `Cargo.toml`:
+- [x] **3.1 `hello-egui-gpu` crate.** `examples/hello-egui-gpu`,
+      ~190 LOC. Pulls `tizen = { features = ["window", "egl"] }`,
+      `egui = "0.29"`, `egui_glow = "0.29"`, `glow = "0.14"`,
+      `khronos-egl = "6"` with the `dynamic` feature. The bring-up
+      follows the roadmap recipe exactly:
 
-  ```toml
-  [workspace]
-  [package]
-  name = "hello-egui-gpu"
-  version = "0.1.0"
-  edition = "2021"
-  publish = false
+      ① open `Window` via `tizen-window`
+      ② build `EglWindow` via `tizen-egl` (note: `unsafe` now;
+        see the EglWindow lifetime refactor in commit 16dddc8)
+      ③ load `libEGL.so` via `khronos-egl::DynamicInstance<EGL1_4>::load_required()`
+      ④ get EGL display from the Wayland `wl_display *`, init,
+        `bind_api(OPENGL_ES_API)`, choose 8/8/8/0 config
+      ⑤ create context — GLES 3 first, fall back to 2
+      ⑥ `create_window_surface(... egl_window.as_ptr() ...)` +
+        `make_current`
+      ⑦ build `glow::Context::from_loader_function(get_proc_address)`
+      ⑧ build `egui::Context` + `egui_glow::Painter`
+      ⑨ `Display::run` closure handles `Resized → egl_window.resize`
+        and `RedrawRequested → run egui → paint → swap_buffers →
+        request_redraw`. UI: a `CentralPanel` with title + frame
+        counter + elapsed seconds, plus an animated floating
+        `Window` with a sine-wave `ProgressBar`. Clear colour also
+        animates in case egui ever stops painting.
 
-  [dependencies]
-  tizen = { git = "https://github.com/smohantty/rust-tizen.git",
-            features = ["window", "egl"] }
-  egui = "0.29"
-  egui_glow = "0.29"
-  glow = "0.14"
-  khronos-egl = { version = "6", features = ["dynamic"] }
-  ```
+- [x] **3.2 Verify on .234.** Cross-build for armv7l, push via
+      `rsdb agent transfer.push`, run on the TV. **Steady 60 FPS,
+      visually confirmed** — both windows render (full-screen
+      `CentralPanel` + floating "animation" popup with progress
+      bar). 25-second transcript:
 
-  Bring-up code (~250 LOC):
-  ① open Window via tizen-window
-  ② build EglWindow via tizen-egl
-  ③ load libEGL.so via `khronos-egl::DynamicInstance::load_required()`
-  ④ create EGL display, choose config, create context (try
-    GLES 3.0 → 2.0 fallback)
-  ⑤ create EGL surface from EglWindow
-  ⑥ make context current
-  ⑦ build `glow::Context::from_loader_function(|name|
-    egl.get_proc_address(name).unwrap_or(ptr::null()))`
-  ⑧ build `egui::Context` + `egui_glow::Painter`
-  ⑨ render loop: on each `Redraw` event, run egui (animated
-    content: fps counter, animated gradient, the egui demo Window),
-    paint, eglSwapBuffers, request_redraw
+      ```text
+      hello-egui-gpu: configured at 1920x1080
+      hello-egui-gpu: EGL 1.5
+      hello-egui-gpu: GLES 3 context
+      hello-egui-gpu: GL_VERSION = OpenGL ES 3.2 v1.r48p0-01eac0…
+      hello-egui-gpu: frame=44   fps≈43.6      (first second, init overhead)
+      hello-egui-gpu: frame=105  fps≈60.1
+      hello-egui-gpu: frame=165  fps≈60.0
+      …
+      hello-egui-gpu: frame=1428 fps≈60.0      (25 s in, still vsync'd)
+      ```
 
-- [ ] **3.2 Verify on .234.** Cross-build for armv7l, push, run for
-      30 s, eyeball the TV. Capture WAYLAND_DEBUG trace if anything
-      misbehaves.
+      1428 frames / 25 s ≈ 57 FPS average (including the slower
+      first second); steady-state is 60 FPS exactly, vsync-locked
+      against the compositor's frame callbacks.
 
 ## Out of scope (post-MVP)
 
