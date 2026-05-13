@@ -39,6 +39,28 @@ pub mod xdg_shell_v6 {
     wayland_scanner::generate_client_code!("protocols/xdg-shell-unstable-v6.xml");
 }
 
+/// `tizen_policy` — Tizen window-management policy. We expose only
+/// the minimal request surface needed to make a window visible
+/// (`activate`, `raise`, `set_type`, `show`); the events are declared
+/// for parser correctness but the safe wrapper ignores them.
+pub mod tizen_policy {
+    #[allow(unused_imports)]
+    use wayland_client;
+    #[allow(unused_imports)]
+    use wayland_client::protocol::*;
+
+    #[doc(hidden)]
+    pub mod __interfaces {
+        #[allow(unused_imports)]
+        use wayland_client::protocol::__interfaces::*;
+        wayland_scanner::generate_interfaces!("protocols/tizen-policy.xml");
+    }
+    #[allow(unused_imports)]
+    use self::__interfaces::*;
+
+    wayland_scanner::generate_client_code!("protocols/tizen-policy.xml");
+}
+
 /// `wtz_shell` + `wtz_surface` + `wtz_screen` (trimmed: just the
 /// minimal `wtz_screen` slice that `wtz_surface.screen` references).
 pub mod wtz_shell {

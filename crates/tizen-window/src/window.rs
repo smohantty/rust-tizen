@@ -3,6 +3,7 @@ use std::os::raw::c_int;
 
 use tizen_tbm_sys::tbm;
 use tizen_tbm_sys::wayland_tbm;
+use tizen_window_sys::tizen_policy::tizen_policy::{TizenPolicy, WinType};
 use tizen_window_sys::wtz_shell::{wtz_shell::WtzShell, wtz_surface::WtzSurface};
 use tizen_window_sys::xdg_shell_v6::{
     zxdg_shell_v6::ZxdgShellV6, zxdg_surface_v6::ZxdgSurfaceV6, zxdg_toplevel_v6::ZxdgToplevelV6,
@@ -87,6 +88,7 @@ impl WindowBuilder {
             xdg_surface,
             xdg_toplevel,
             wtz_surface,
+            tz_policy: display.tz_policy.clone(),
             tbm_client_ptr: display.tbm_client.ptr,
             conn: display.conn.clone(),
         })
@@ -107,6 +109,10 @@ pub struct Window {
     pub(crate) xdg_toplevel: ZxdgToplevelV6,
     #[allow(dead_code)]
     pub(crate) wtz_surface: WtzSurface,
+    /// `tizen_policy` global, bound at display-connect time if the
+    /// compositor advertises it. Used to make the window visible
+    /// (`show` + `activate` + `raise`) and to set the window type.
+    pub(crate) tz_policy: Option<TizenPolicy>,
     pub(crate) tbm_client_ptr: *mut wayland_tbm::wayland_tbm_client,
     pub(crate) conn: Connection,
 }
@@ -186,6 +192,30 @@ impl Window {
         self.surface.damage_buffer(0, 0, w, h);
         self.surface.commit();
 
+        // Tizen-specific visibility step. Without these requests the
+        // compositor lays out our surface but keeps it BEHIND the
+        // launcher / system UI — we can see this via WAYLAND_DEBUG
+        // showing a configure() event arriving for our toplevel but
+        // no actual pixels appearing on the TV. `tizen_core_wl`'s
+        // `tizen_core_wl_window_show()` does the same dance:
+        //
+        //   tizen_policy.set_type(surface, toplevel)
+        //   tizen_policy.show(surface)         // since v8
+        //   tizen_policy.activate(surface)     // bring to top + focus
+        //   tizen_policy.raise(surface)        // raise in stack
+        //
+        // We do this on every paint to be safe across reconfigure;
+        // the compositor de-dups internally.
+        if let Some(tp) = &self.tz_policy {
+            if !self.state.policy_shown {
+                tp.set_type(&self.surface, WinType::Toplevel);
+                tp.show(&self.surface);
+                tp.activate(&self.surface);
+                tp.raise(&self.surface);
+                self.state.policy_shown = true;
+            }
+        }
+
         // We deliberately leak the TBM surface + wl_buffer here: the
         // compositor still owns them until it sends `wl_buffer.release`.
         // A real production crate would track them and free on release.
@@ -214,6 +244,7 @@ pub(crate) struct WindowState {
     pub(crate) compositor: Option<WlCompositor>,
     pub(crate) xdg_shell: Option<ZxdgShellV6>,
     pub(crate) wtz_shell: Option<WtzShell>,
+    pub(crate) tz_policy: Option<TizenPolicy>,
     pub(crate) seat: Option<WlSeat>,
 
     // Window-level state.
@@ -229,6 +260,9 @@ pub(crate) struct WindowState {
     pub(crate) should_close: bool,
     /// BGRX value to paint on (re)configure.
     pub(crate) pixel: u32,
+    /// Set once we've fired the `tizen_policy.show/activate/raise`
+    /// trio post-paint. Idempotent on subsequent paints.
+    pub(crate) policy_shown: bool,
 }
 
 impl Dispatch<WlSurface, ()> for WindowState {
@@ -342,6 +376,21 @@ impl Dispatch<WtzSurface, ()> for WindowState {
         _: &QueueHandle<Self>,
     ) {
         // Decoration + screen events; we don't act on them in the MVP.
+    }
+}
+
+impl Dispatch<TizenPolicy, ()> for WindowState {
+    fn event(
+        _: &mut Self,
+        _: &TizenPolicy,
+        _: <TizenPolicy as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        // tizen_policy emits notifications for conformant area changes,
+        // notification-window done, etc. None of those are relevant to
+        // making a basic window visible — silently ignore.
     }
 }
 

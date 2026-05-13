@@ -2,6 +2,7 @@ use std::ffi::c_void;
 use std::sync::Arc;
 
 use tizen_tbm_sys::wayland_tbm;
+use tizen_window_sys::tizen_policy::tizen_policy::TizenPolicy;
 use tizen_window_sys::wtz_shell::wtz_shell::WtzShell;
 use tizen_window_sys::xdg_shell_v6::zxdg_shell_v6::ZxdgShellV6;
 use wayland_backend::client::{Backend, ObjectData, ObjectId};
@@ -20,6 +21,7 @@ pub struct Display {
     pub(crate) compositor: WlCompositor,
     pub(crate) xdg_shell: ZxdgShellV6,
     pub(crate) wtz_shell: WtzShell,
+    pub(crate) tz_policy: Option<TizenPolicy>,
     pub(crate) tbm_client: TbmClientHandle,
 }
 
@@ -68,6 +70,11 @@ impl Display {
             .wtz_shell
             .clone()
             .ok_or(Error::GlobalMissing("wtz_shell"))?;
+        // tizen_policy is optional from a "create a surface" standpoint
+        // but mandatory for actually making the window visible on Tizen
+        // (the compositor places client surfaces below the launcher
+        // until tizen_policy.show / .activate is called).
+        let tz_policy = state.tz_policy.clone();
 
         // SAFETY: `Backend::display_ptr()` returns a live `wl_display *`
         // for the connection's lifetime.
@@ -85,6 +92,7 @@ impl Display {
             compositor,
             xdg_shell,
             wtz_shell,
+            tz_policy,
             tbm_client: TbmClientHandle { ptr: tbm_ptr },
         })
     }
@@ -146,6 +154,12 @@ impl Dispatch<wl_registry::WlRegistry, ()> for WindowState {
             "wtz_shell" => {
                 state.wtz_shell =
                     Some(registry.bind::<WtzShell, _, _>(name, version.min(1), qh, ()));
+            }
+            "tizen_policy" => {
+                // We need at least v8 for `tizen_policy.show`; clamp to
+                // 8 so we get exactly the bindings our XML declares.
+                state.tz_policy =
+                    Some(registry.bind::<TizenPolicy, _, _>(name, version.min(8), qh, ()));
             }
             "wl_seat" => {
                 state.seat = Some(registry.bind::<WlSeat, _, _>(name, version.min(7), qh, ()));
