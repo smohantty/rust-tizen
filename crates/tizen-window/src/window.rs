@@ -194,23 +194,26 @@ impl Window {
 
         // Tizen-specific visibility step. Without these requests the
         // compositor lays out our surface but keeps it BEHIND the
-        // launcher / system UI — we can see this via WAYLAND_DEBUG
-        // showing a configure() event arriving for our toplevel but
-        // no actual pixels appearing on the TV. `tizen_core_wl`'s
-        // `tizen_core_wl_window_show()` does the same dance:
+        // launcher / system UI. `tizen_core_wl`'s
+        // `tizen_core_wl_window_show()` (tizen_core_wl_surface.c:2111)
+        // does:
         //
         //   tizen_policy.set_type(surface, toplevel)
         //   tizen_policy.show(surface)         // since v8
-        //   tizen_policy.activate(surface)     // bring to top + focus
-        //   tizen_policy.raise(surface)        // raise in stack
         //
-        // We do this on every paint to be safe across reconfigure;
-        // the compositor de-dups internally.
+        // We intentionally do NOT call `activate` here — `activate`
+        // grabs keyboard focus, and on a TV target that means the
+        // launcher's IR-remote events stop being delivered to the
+        // launcher and start going to us. If our process then dies
+        // (or doesn't handle keys), the remote becomes unresponsive
+        // until the compositor times out our focus or reboots.
+        // `raise` is included because it just bumps z-order — no
+        // focus side effect. Callers that want focus can opt in via
+        // a future explicit `activate()` method.
         if let Some(tp) = &self.tz_policy {
             if !self.state.policy_shown {
                 tp.set_type(&self.surface, WinType::Toplevel);
                 tp.show(&self.surface);
-                tp.activate(&self.surface);
                 tp.raise(&self.surface);
                 self.state.policy_shown = true;
             }
