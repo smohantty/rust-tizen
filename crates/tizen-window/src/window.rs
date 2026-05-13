@@ -159,9 +159,9 @@ impl Window {
     /// Returns each pending event in arrival order. Empty when
     /// nothing has happened since the last drain.
     ///
-    /// In Phase 1.4 this becomes the building block for
-    /// `Display::run` — for now it's the explicit way to consume
-    /// events from the dispatch state.
+    /// Most callers use [`Display::run`](crate::Display::run) instead,
+    /// which drains and dispatches on each loop iteration. This is the
+    /// escape hatch for callers running their own dispatch loop.
     pub fn drain_events(&mut self) -> impl Iterator<Item = crate::Event> + '_ {
         self.state.pending_events.drain(..)
     }

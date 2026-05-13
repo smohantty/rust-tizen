@@ -119,6 +119,28 @@ impl Display {
         Ok(())
     }
 
+    /// Drive the event loop, calling `callback` with each
+    /// [`crate::Event`] until the compositor sends close. Drains any
+    /// events queued before the first dispatch (e.g. the initial
+    /// `RedrawRequested` from the first configure) before blocking.
+    pub fn run<F>(&mut self, window: &mut crate::Window, mut callback: F) -> Result<()>
+    where
+        F: FnMut(&mut crate::Window, crate::Event),
+    {
+        loop {
+            let pending: Vec<crate::Event> = window.drain_events().collect();
+            for ev in pending {
+                callback(window, ev);
+            }
+            if window.should_close() {
+                return Ok(());
+            }
+            self.queue
+                .blocking_dispatch(&mut window.state)
+                .map_err(|e| Error::Transport(e.to_string()))?;
+        }
+    }
+
     pub(crate) fn queue_handle(&self) -> QueueHandle<WindowState> {
         self.queue.handle()
     }

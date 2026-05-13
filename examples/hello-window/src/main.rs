@@ -59,25 +59,18 @@ fn main() -> std::process::ExitCode {
     );
     window.fill_solid(colour);
 
-    while !window.should_close() {
-        if let Err(e) = display.dispatch_pending(&mut window) {
-            eprintln!("hello-window: dispatch: {e}");
-            return std::process::ExitCode::FAILURE;
-        }
-        let mut needs_paint = false;
-        for ev in window.drain_events() {
-            match ev {
-                Event::Resized { width, height } => {
-                    println!("hello-window: resized to {width}x{height}");
-                    needs_paint = true;
-                }
-                Event::RedrawRequested => needs_paint = true,
-                _ => {}
-            }
-        }
-        if needs_paint {
+    let run_result = display.run(&mut window, |window, event| match event {
+        Event::Resized { width, height } => {
+            println!("hello-window: resized to {width}x{height}");
             window.fill_solid(colour);
         }
+        Event::RedrawRequested => window.fill_solid(colour),
+        _ => {}
+    });
+
+    if let Err(e) = run_result {
+        eprintln!("hello-window: dispatch: {e}");
+        return std::process::ExitCode::FAILURE;
     }
 
     println!("hello-window: close requested by compositor, exiting");

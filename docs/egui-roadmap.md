@@ -87,7 +87,7 @@ What's missing to render egui:
 │   1.1 ☑ raw-window-handle impls                              │
 │   1.2 ☑ wl_surface.frame callback API                        │
 │   1.3 ☑ Repaint on configure (compositor resize)             │
-│   1.4 ☐ Generic Event enum + Display::run helper             │
+│   1.4 ☑ Display::run event-loop helper                       │
 │   1.5 ☐ wl_pointer wiring (enter/leave/motion/button/wheel)  │
 │   1.6 ☐ wl_keyboard wiring (raw keycodes; xkb deferred)      │
 ├──────────────────────────────────────────────────────────────┤
@@ -137,28 +137,18 @@ choice. No new crates; pure additions to `tizen-window`.
       drains events and re-fills on `Resized`, so the buffer now matches
       the compositor's chosen size instead of staying pinned at 640×480.
 
-- [ ] **1.4 Event loop helper + winit-shaped Event enum.** Bare-bones
-      `Display::run(window, callback)` that blocks dispatching events.
-      Variant names and field shapes mirror `winit::event::WindowEvent`
-      (see Design Rules section above):
+- [x] **1.4 Display::run event-loop helper.** `Display::run(&mut self,
+      window, callback)` blocks dispatching events and delivers each
+      `Event` to the user closure with `&mut Window` (so the closure
+      can `fill_solid`, `request_redraw`, etc.). Returns when the
+      compositor sends close. Pending events queued before the first
+      dispatch (e.g. the initial `RedrawRequested` from the first
+      configure) are drained *before* the first `blocking_dispatch`,
+      so the closure always sees the first frame.
 
-  ```rust
-  pub enum Event {
-      Resized { width: u32, height: u32 },
-      RedrawRequested,
-      CloseRequested,
-      Focused(bool),
-      CursorEntered { x: f64, y: f64 },
-      CursorLeft,
-      CursorMoved   { x: f64, y: f64 },
-      MouseInput    { button: MouseButton, pressed: bool },
-      MouseWheel    { dx: f64, dy: f64 },
-      KeyboardInput { keycode: u32, pressed: bool, modifiers: ModifiersState },
-  }
-  ```
-
-  `MouseButton`, `ModifiersState` mirror winit's shapes. No egui types
-  leak into this enum — the example does the egui translation.
+      The `Event` enum itself landed in Phase 1.2 — variant names and
+      field shapes mirror `winit::event::WindowEvent`. Pointer and
+      keyboard variants get wired in 1.5 / 1.6.
 
 - [ ] **1.5 wl_pointer wiring.** Bind seat → wl_pointer; dispatch
       `enter`, `leave`, `motion`, `button`, `axis` events; deliver
