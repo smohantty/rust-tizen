@@ -10,13 +10,21 @@
 //!   info                 Probe compositor: max_touch_count, accepted classes
 //!   help                 Print this help
 //!
-//!   nav <preset|KEY [KEY ...]>
-//!                        Keyboard injection. `preset` is one of:
-//!                        luud, rrrd, box, back, home.
-//!                        Otherwise tokens are X11 keysym names sent in order.
+//!   nav <PATTERN|PRESET>
+//!                        D-pad pattern. Each char in PATTERN is one key:
+//!                          l = Left   r = Right   u = Up   d = Down
+//!                          e = Enter (Return)
+//!                        Enter is NOT appended automatically — put `e`
+//!                        in the pattern if you want it.
+//!                          Examples: `nav luud`, `nav luude`, `nav rrrde`
+//!                        Or a named preset (priority over the DSL):
+//!                          box  — walk a clockwise box (no Enter)
+//!                          back — XF86Back
+//!                          home — XF86Home
 //!
 //!   key <NAME> [press|release]
-//!                        One key. With no phase, sends press+release.
+//!                        One key by X11 keysym name (e.g. XF86Back).
+//!                        Defaults to press+release pair.
 //!
 //!   click [X Y]          Primary mouse click at (X, Y). Default: 960 540
 //!                        (centre of 1920×1080). Visible on Tizen TV.
@@ -42,10 +50,8 @@ use tizen::input::{
     DeviceType, Error, InputGenerator, KeyState, PointerButton, TouchPhase,
 };
 
-/// Named keyboard navigation presets.
+/// Named presets that aren't expressible as the l/r/u/d/e DSL.
 const PRESETS: &[(&str, &[&str])] = &[
-    ("luud", &["Left", "Up", "Up", "Down", "Return"]),
-    ("rrrd", &["Right", "Right", "Right", "Down", "Return"]),
     (
         "box",
         &[
@@ -108,18 +114,41 @@ fn info_cmd() -> Result<(), Error> {
 }
 
 fn nav_cmd(args: &[String]) -> Result<(), Error> {
-    let keys: Vec<String> = match args.first().map(String::as_str) {
-        None => {
-            eprintln!("hello-input: `nav` needs a preset or one or more key names");
-            return Ok(());
+    let Some(pattern) = args.first() else {
+        eprintln!(
+            "hello-input: `nav` needs a pattern (e.g. luud) or a preset name (box, back, home)"
+        );
+        return Ok(());
+    };
+
+    // Named presets take priority over the char-DSL.
+    let keys: Vec<&'static str> = if let Some(preset) = find_preset(pattern) {
+        preset.to_vec()
+    } else {
+        let mut out = Vec::with_capacity(pattern.len());
+        for ch in pattern.chars() {
+            let name = match ch.to_ascii_lowercase() {
+                'l' => "Left",
+                'r' => "Right",
+                'u' => "Up",
+                'd' => "Down",
+                'e' => "Return",
+                other => {
+                    eprintln!(
+                        "hello-input: unknown nav char `{other}` in `{pattern}` — \
+                         use l/r/u/d/e or a preset (box, back, home)"
+                    );
+                    return Ok(());
+                }
+            };
+            out.push(name);
         }
-        Some(name) if args.len() == 1 && find_preset(name).is_some() => preset_keys(name),
-        _ => args.to_vec(),
+        out
     };
 
     let mut gen = open_all_classes("hello-input")?;
-    println!("hello-input: nav — injecting {} key(s):", keys.len());
-    for k in &keys {
+    println!("hello-input: nav `{pattern}` — {} key(s):", keys.len());
+    for k in keys {
         println!("  -> {k}");
         gen.key(k, KeyState::Pressed)?;
         thread::sleep(Duration::from_millis(40));
@@ -128,6 +157,12 @@ fn nav_cmd(args: &[String]) -> Result<(), Error> {
     }
     println!("hello-input: done");
     Ok(())
+}
+
+fn find_preset(name: &str) -> Option<&'static [&'static str]> {
+    PRESETS
+        .iter()
+        .find_map(|(n, v)| (*n == name).then_some(*v))
 }
 
 fn key_cmd(args: &[String]) -> Result<(), Error> {
@@ -230,20 +265,6 @@ fn parse_coord(arg: Option<&String>, fallback: u32) -> u32 {
     arg.and_then(|s| s.parse::<u32>().ok()).unwrap_or(fallback)
 }
 
-fn find_preset(name: &str) -> Option<&'static [&'static str]> {
-    PRESETS
-        .iter()
-        .find_map(|(n, v)| (*n == name).then_some(*v))
-}
-
-fn preset_keys(name: &str) -> Vec<String> {
-    find_preset(name)
-        .unwrap_or(&[])
-        .iter()
-        .map(|&s| s.to_string())
-        .collect()
-}
-
 fn print_help() {
     print!(
         r#"hello-input — synthetic input injection for Tizen Wayland
@@ -255,9 +276,11 @@ SUBCOMMANDS:
     info                          Probe compositor capabilities + max_touch_count
     help                          Print this help
 
-    nav <preset|KEY ...>          Keyboard navigation.
-                                  Presets: luud, rrrd, box, back, home.
-                                  Otherwise tokens are X11 keysym names in order.
+    nav <PATTERN|PRESET>          Keyboard navigation.
+                                    PATTERN chars: l/r/u/d/e  (Left/Right/Up/Down/Enter)
+                                    Enter is NOT auto-appended — add `e` if wanted.
+                                    Examples: luud, luude, rrrde
+                                    PRESETS: box, back, home  (take priority over DSL)
 
     key <NAME> [press|release]    One key (defaults to press+release pair).
 
@@ -267,8 +290,9 @@ SUBCOMMANDS:
 
 EXAMPLES:
     hello-input info
-    hello-input nav luud
-    hello-input nav Up Up Right Return
+    hello-input nav luud       # Left Up Up Down
+    hello-input nav luude      # Left Up Up Down Enter
+    hello-input nav box        # walk a clockwise box
     hello-input key XF86Back
     hello-input click 200 400
     hello-input tap 960 540 --finger 1
