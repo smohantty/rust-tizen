@@ -13,6 +13,7 @@ use wayland_backend::client::{Backend, ObjectData, ObjectId};
 use wayland_backend::protocol::Message;
 use wayland_client::protocol::{
     wl_compositor::WlCompositor,
+    wl_keyboard::WlKeyboard,
     wl_pointer::WlPointer,
     wl_registry,
     wl_seat::{self, WlSeat},
@@ -248,9 +249,11 @@ impl Dispatch<WlSeat, ()> for WindowState {
             capabilities: WEnum::Value(caps),
         } = event
         {
-            let has_pointer = caps.contains(wl_seat::Capability::Pointer);
-            if has_pointer && state.pointer.is_none() {
+            if caps.contains(wl_seat::Capability::Pointer) && state.pointer.is_none() {
                 state.pointer = Some(seat.get_pointer(qh, ()));
+            }
+            if caps.contains(wl_seat::Capability::Keyboard) && state.keyboard.is_none() {
+                state.keyboard = Some(seat.get_keyboard(qh, ()));
             }
         }
     }
@@ -313,8 +316,41 @@ impl Dispatch<WlPointer, ()> for WindowState {
     }
 }
 
-// Maps Linux evdev `BTN_*` codes (input-event-codes.h) — the wire
-// values `wl_pointer.button` carries — to our winit-shaped enum.
+// Raw keycodes via wl_keyboard. We don't ship xkbcommon yet, so the
+// `keymap` event is consumed-and-dropped (closing the fd) and the
+// `modifiers` event is ignored — `Event::KeyboardInput` always
+// surfaces `modifiers: ModifiersState::empty()` until a future
+// xkbcommon pass translates mod indices.
+impl Dispatch<WlKeyboard, ()> for WindowState {
+    fn event(
+        state: &mut Self,
+        _: &WlKeyboard,
+        event: <WlKeyboard as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        use wayland_client::protocol::wl_keyboard::{Event, KeyState};
+        match event {
+            Event::Enter { .. } => state.pending_events.push(crate::Event::Focused(true)),
+            Event::Leave { .. } => state.pending_events.push(crate::Event::Focused(false)),
+            Event::Key {
+                key,
+                state: key_state,
+                ..
+            } => {
+                let pressed = matches!(key_state, WEnum::Value(KeyState::Pressed));
+                state.pending_events.push(crate::Event::KeyboardInput {
+                    keycode: key,
+                    pressed,
+                    modifiers: crate::ModifiersState::empty(),
+                });
+            }
+            _ => {}
+        }
+    }
+}
+
 fn evdev_to_mouse_button(code: u32) -> crate::MouseButton {
     use crate::MouseButton;
     match code {

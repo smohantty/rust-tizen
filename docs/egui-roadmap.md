@@ -89,7 +89,7 @@ What's missing to render egui:
 │   1.3 ☑ Repaint on configure (compositor resize)             │
 │   1.4 ☑ Display::run event-loop helper                       │
 │   1.5 ☑ wl_pointer wiring (enter/leave/motion/button/wheel)  │
-│   1.6 ☐ wl_keyboard wiring (raw keycodes; xkb deferred)      │
+│   1.6 ☑ wl_keyboard wiring (raw keycodes; xkb deferred)      │
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 2 — `tizen-egl` crate + EGL probe                      │
 │   2.1 ☐ tizen-egl-sys (wl_egl_window FFI)                    │
@@ -168,13 +168,28 @@ choice. No new crates; pure additions to `tizen-window`.
   `MouseButton::Other(code as u16)`. `hello-window` logs every
   pointer event for on-device verification.
 
-- [ ] **1.6 wl_keyboard wiring (raw keycodes).** Bind seat →
-      wl_keyboard; deliver `enter`, `leave`, `modifiers`, `key`. v1
-      ships **raw evdev keycodes** in `Event::KeyboardInput {
-      keycode, … }` — no xkbcommon, no text-input. egui's
-      hello-world demo only needs Esc / Enter / arrow keys to be
-      interactive enough, all mappable from raw keycodes. Full
-      xkbcommon + UTF-8 text input is post-MVP.
+- [x] **1.6 wl_keyboard wiring (raw keycodes).** `Dispatch<WlSeat>`
+      also binds `wl_keyboard` on the `Keyboard` capability;
+      `WindowState::keyboard` holds it. `Dispatch<WlKeyboard>` maps:
+
+  | wl_keyboard event | crate::Event |
+  |---|---|
+  | `enter { surface, keys }` | `Focused(true)` |
+  | `leave { surface }` | `Focused(false)` |
+  | `key { key, state }` | `KeyboardInput { keycode: key, pressed, modifiers: empty }` |
+
+  `keycode` is the raw evdev value (`KEY_ESC=1`, `KEY_ENTER=28`,
+  `KEY_LEFT/RIGHT/UP/DOWN=105/106/103/108`, …). The `keymap` event
+  is consumed-and-dropped, which closes the keymap fd — we don't
+  parse it yet. The `modifiers` event is silently ignored because
+  the wire format ships XKB mod *indices* whose meaning depends on
+  the keymap; without xkbcommon we cannot honestly populate
+  `ModifiersState`, so every `KeyboardInput` carries
+  `ModifiersState::empty()`. Full xkbcommon + UTF-8 text input is
+  post-MVP. `hello-window` logs every key event so the on-device
+  transcript can show the remote talking.
+
+**Phase 1 is now complete — all of Phase 2 can begin.**
 
 ## Phase 2 — `tizen-egl` + capability probe
 

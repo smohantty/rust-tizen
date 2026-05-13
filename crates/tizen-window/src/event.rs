@@ -12,11 +12,8 @@
 use bitflags::bitflags;
 
 /// One event the compositor (or our own dispatcher) has produced for
-/// the window. Drains via the `Display::run` event loop (Phase 1.4).
-///
-/// This enum will grow as we wire `wl_pointer` (Phase 1.5) and
-/// `wl_keyboard` (Phase 1.6). The variant *shapes* are committed up
-/// front so downstream code can `match` exhaustively without churn.
+/// the window. Drained by `Display::run` and delivered to the user
+/// closure.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum Event {

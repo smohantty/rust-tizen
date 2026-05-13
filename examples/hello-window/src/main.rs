@@ -73,6 +73,13 @@ fn main() -> std::process::ExitCode {
             println!("hello-window: mouse {what} {button:?}");
         }
         Event::MouseWheel { dx, dy } => println!("hello-window: wheel dx={dx:.2} dy={dy:.2}"),
+        Event::Focused(focused) => println!("hello-window: focus={focused}"),
+        Event::KeyboardInput {
+            keycode, pressed, ..
+        } => {
+            let what = if pressed { "press" } else { "release" };
+            println!("hello-window: key {what} keycode={keycode}");
+        }
         _ => {}
     });
 
