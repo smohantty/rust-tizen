@@ -293,11 +293,16 @@ impl ScreenCapturer {
         }
 
         // 5. Spin until the matching `done` event arrives.
+        // Use `roundtrip` (not just `blocking_dispatch`) to match efl_util's
+        // C flow — `wl_display_roundtrip_queue` sends a sync request each
+        // iteration, which forces the server to flush any pending events
+        // on this client. Some Tizen compositor builds buffer the
+        // screenshot `done` event server-side until they next see a sync.
         let want_area = area.is_some();
         loop {
             self.inner
                 .queue
-                .blocking_dispatch(&mut self.inner.state)
+                .roundtrip(&mut self.inner.state)
                 .map_err(|e| Error::Transport(e.to_string()))?;
             let done = if want_area {
                 self.inner.state.area_shot_done
