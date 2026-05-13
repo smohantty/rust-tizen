@@ -47,7 +47,9 @@ What's missing to render egui:
 │   1.1 ☐ raw-window-handle impls                              │
 │   1.2 ☐ wl_surface.frame callback API                        │
 │   1.3 ☐ Repaint on configure (compositor resize)             │
-│   1.4 ☐ Display::run(window, |event| {…}) helper             │
+│   1.4 ☐ Generic Event enum + Display::run helper             │
+│   1.5 ☐ wl_pointer wiring (enter/leave/motion/button/wheel)  │
+│   1.6 ☐ wl_keyboard wiring (raw keycodes; xkb deferred)      │
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 2 — `tizen-egl` crate + EGL probe                      │
 │   2.1 ☐ tizen-egl-sys (wl_egl_window FFI)                    │
@@ -92,10 +94,44 @@ choice. No new crates; pure additions to `tizen-window`.
       redraw callback so the buffer matches. Today we stay at 640×480
       even when the compositor places us at 1920×1080.
 
-- [ ] **1.4 Event loop helper.** Bare-bones `Display::run(window,
-      callback)` that blocks dispatching events. v1 event enum:
-      `Configure { w, h }`, `Redraw`, `Close`. Input events arrive in
-      a later phase (not needed for an animated hello-world).
+- [ ] **1.4 Event loop helper + generic Event enum.** Bare-bones
+      `Display::run(window, callback)` that blocks dispatching events.
+      The enum is framework-agnostic — modelled after winit's events
+      so any UI framework can adapt easily:
+
+  ```rust
+  pub enum Event {
+      Configure { width: u32, height: u32 },
+      Redraw,
+      CloseRequested,
+
+      PointerEntered { x: f64, y: f64 },
+      PointerLeft,
+      PointerMoved { x: f64, y: f64 },
+      PointerButton { button: PointerButton, pressed: bool, x: f64, y: f64 },
+      PointerWheel { dx: f64, dy: f64 },
+
+      KeyboardEnter,
+      KeyboardLeft,
+      Key { keycode: u32, pressed: bool, modifiers: ModifierState },
+  }
+  ```
+
+  `PointerButton`, `ModifierState` defined alongside. Touch deferred
+  (target has no touchscreen). Crucially: **no egui types in this
+  enum**. The example does the egui translation.
+
+- [ ] **1.5 wl_pointer wiring.** Bind seat → wl_pointer; dispatch
+      `enter`, `leave`, `motion`, `button`, `axis` events; deliver
+      through the `Event` enum above.
+
+- [ ] **1.6 wl_keyboard wiring (raw keycodes).** Bind seat →
+      wl_keyboard; deliver `enter`, `leave`, `modifiers`, `key`. v1
+      ships **raw evdev keycodes** in `Event::Key { keycode, … }` —
+      no xkbcommon, no text-input. egui's hello-world demo only
+      needs Esc / Enter / arrow keys to be interactive enough, all
+      mappable from raw keycodes. Full xkbcommon + UTF-8 text input
+      is post-MVP.
 
 ## Phase 2 — `tizen-egl` + capability probe
 
@@ -181,8 +217,10 @@ animated egui UI via the GPU.
 
 Once the egui demo is up, these are the natural next steps:
 
-- Input: `wl_keyboard` + `xkbcommon`, `wl_pointer`, `wl_touch`.
-  Without these the demo is animated-but-uninteractive.
+- Full keyboard input via xkbcommon: keysyms, UTF-8 text-input,
+  composed character entry. v1 ships raw evdev keycodes only.
+- `wl_touch`: target has no touchscreen; same pattern as pointer
+  when we want it.
 - CPU backend: `Window::with_cpu_buffer` + egui→`tiny-skia`
   rasterizer. For when GPU is overkill or unavailable.
 - `tizen-policy` features: window type, brightness, screen mode
