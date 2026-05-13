@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "hello-window"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+publish = false
+
+[dependencies]
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["window"] }
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
