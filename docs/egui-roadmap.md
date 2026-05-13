@@ -95,7 +95,7 @@ What's missing to render egui:
 │   2.1 ☑ tizen-egl-sys (wl_egl_window FFI)                    │
 │   2.2 ☑ tizen-egl safe wrapper                               │
 │   2.3 ☑ Umbrella `egl` feature                               │
-│   2.4 ☐ examples/hello-egl-probe — go/no-go for GLES 3.x     │
+│   2.4 ☑ examples/hello-egl-probe — GO: GLES 3.2 on Mali-G51  │
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 3 — egui hello world                                   │
 │   3.1 ☐ examples/hello-egui-gpu — egui_glow + tizen-egl      │
@@ -197,12 +197,15 @@ The single new platform crate. Wraps `libwayland-egl.so.1` (in the
 rootstrap, no dlopen needed) and exposes an `EglWindow` that
 `khronos-egl` can use to create a window surface.
 
-- [x] **2.1 `tizen-egl-sys`.** New `#![no_std]` crate at
-      `crates/tizen-egl-sys` with `extern "C"` declarations for
-      `wl_egl_window_create / _destroy / _resize` and the opaque
-      `wl_egl_window` ZST. Link gated on `cfg(tizen)` —
-      `libwayland-egl.so.1` is in the Tizen rootstrap so no `dlopen`
-      shim is needed. Registered in the workspace's
+- [x] **2.1 `tizen-egl-sys`.** New crate at `crates/tizen-egl-sys`
+      that resolves `wl_egl_window_create / _destroy / _resize` via
+      `libloading::Library::new("libwayland-egl.so.1")` on first use.
+      The Tizen 10 rootstrap turned out to lack a build-time symlink
+      for `libwayland-egl` even though every device ships the `.so.1`,
+      so we use the same dlopen pattern as
+      `tizen-tbm-sys::wayland_tbm`. Public API: `is_available()` +
+      `create` / `destroy` / `resize` returning
+      `Result<_, &'static LoadError>`. Registered in
       `[workspace.dependencies]`.
 
 - [x] **2.2 `tizen-egl`.** Safe wrapper. Public:
@@ -230,16 +233,28 @@ rootstrap, no dlopen needed) and exposes an `EglWindow` that
       re-exports the crate as `tizen::egl` behind the same feature.
       `cargo check -p tizen --features egl` clean.
 
-- [ ] **2.4 `hello-egl-probe`.** Tiny example that:
-      ① opens a Window, ② creates an EglWindow, ③ initialises EGL,
-      ④ binds GLES API, ⑤ creates a context (asks for GLES 3.x first,
-      falls back to 2.0), ⑥ prints `eglQueryString(VENDOR /
-      CLIENT_APIS / EXTENSIONS)` + `glGetString(VENDOR / RENDERER /
-      VERSION / SHADING_LANGUAGE_VERSION)`.
+- [x] **2.4 `hello-egl-probe`.** Standalone example at
+      `examples/hello-egl-probe` that opens a Window, builds an
+      `EglWindow`, dynamically loads `libEGL.so` via
+      `khronos-egl`, asks for a GLES 3 context (falling back to 2),
+      makes the context current, and prints `eglQueryString` +
+      `glGetString` via `glow`.
 
-      **Go/no-go gate for Phase 3.** If the probe shows GLES 3.0+,
-      egui_glow is on. If only GLES 2.0, we'd need to fall back to
-      ancient egui versions and the path is much rougher.
+      **On-device verdict (.234, Tizen 10/TV armv7l):** GO.
+
+      ```text
+      EGL_VERSION       1.5
+      EGL_VENDOR        ARM
+      EGL_CLIENT_APIS   OpenGL_ES
+      GL_VENDOR         ARM
+      GL_RENDERER       Mali-G51
+      GL_VERSION        OpenGL ES 3.2 v1.r48p0-01eac0…
+      GL_GLSL           OpenGL ES GLSL ES 3.20
+      ```
+
+      GLES 3.2 + GLSL 3.20 → `egui_glow` is on for Phase 3.
+
+**Phase 2 is complete — Phase 3 (egui hello world) can begin.**
 
 ## Phase 3 — egui hello world
 

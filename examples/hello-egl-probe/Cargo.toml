@@ -1,0 +1,22 @@
+[workspace]
+
+[package]
+name = "hello-egl-probe"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+publish = false
+
+[dependencies]
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["window", "egl"] }
+khronos-egl = { version = "6", features = ["dynamic"] }
+glow = "0.14"
+libloading = "0.8"
+raw-window-handle = "0.6"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
