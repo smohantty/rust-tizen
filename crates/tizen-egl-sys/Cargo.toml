@@ -8,11 +8,14 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 description = "Raw FFI bindings to libwayland-egl (wl_egl_window_*) for Tizen Wayland clients"
-categories = ["external-ffi-bindings", "no-std"]
+categories = ["external-ffi-bindings"]
 keywords = ["tizen", "wayland", "egl", "ffi", "bindings"]
 readme = "README.md"
 
 [lib]
+
+[dependencies]
+libloading = "0.8"
 
 [lints]
 workspace = true

@@ -13,9 +13,7 @@ use std::fmt;
 use std::ptr::NonNull;
 
 use raw_window_handle::{HandleError, HasWindowHandle, RawWindowHandle};
-use tizen_egl_sys::{
-    wl_egl_window, wl_egl_window_create, wl_egl_window_destroy, wl_egl_window_resize,
-};
+use tizen_egl_sys::{wl_egl_window, LoadError};
 
 /// Result alias for fallible `tizen-egl` operations.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -32,6 +30,8 @@ pub enum Error {
     InvalidSize,
     /// `wl_egl_window_create` returned NULL (out of memory).
     CreateFailed,
+    /// `libwayland-egl.so.1` could not be loaded.
+    LibraryLoad(&'static LoadError),
 }
 
 impl fmt::Display for Error {
@@ -41,6 +41,7 @@ impl fmt::Display for Error {
             Self::NotWayland => f.write_str("window handle is not Wayland"),
             Self::InvalidSize => f.write_str("width and height must be non-zero"),
             Self::CreateFailed => f.write_str("wl_egl_window_create returned NULL"),
+            Self::LibraryLoad(e) => write!(f, "{e}"),
         }
     }
 }
@@ -74,7 +75,10 @@ impl<'w> EglWindow<'w> {
         };
         // SAFETY: `wl.surface` is a live `wl_surface *` for as long as
         // the borrow `&'w W` is held (the raw-window-handle contract).
-        let raw = unsafe { wl_egl_window_create(wl.surface.as_ptr(), width as i32, height as i32) };
+        let raw = unsafe {
+            tizen_egl_sys::create(wl.surface.as_ptr(), width as i32, height as i32)
+                .map_err(Error::LibraryLoad)?
+        };
         NonNull::new(raw)
             .map(|nn| Self {
                 ptr: nn,
@@ -92,18 +96,22 @@ impl<'w> EglWindow<'w> {
 
     /// Resize the underlying `wl_egl_window`. `dx` / `dy` shift the
     /// origin (negative values move the visible area up/left); pass
-    /// `0, 0` for a centred resize.
-    pub fn resize(&self, width: u32, height: u32, dx: i32, dy: i32) {
+    /// `0, 0` for a centred resize. Errors only if the underlying
+    /// `libwayland-egl.so.1` cannot be re-resolved (it can't, since
+    /// `new` already loaded it).
+    pub fn resize(&self, width: u32, height: u32, dx: i32, dy: i32) -> Result<()> {
         unsafe {
-            wl_egl_window_resize(self.ptr.as_ptr(), width as i32, height as i32, dx, dy);
+            tizen_egl_sys::resize(self.ptr.as_ptr(), width as i32, height as i32, dx, dy)
+                .map_err(Error::LibraryLoad)
         }
     }
 }
 
 impl Drop for EglWindow<'_> {
     fn drop(&mut self) {
-        // SAFETY: `self.ptr` came from `wl_egl_window_create`; we never
-        // expose it for double-free.
-        unsafe { wl_egl_window_destroy(self.ptr.as_ptr()) };
+        // SAFETY: `self.ptr` came from a successful `create`; we never
+        // expose it for double-free. `destroy` silently no-ops if the
+        // library somehow became unavailable.
+        unsafe { tizen_egl_sys::destroy(self.ptr.as_ptr()) };
     }
 }
