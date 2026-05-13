@@ -1,0 +1,22 @@
+[workspace]
+
+[package]
+name = "hello-screenshot"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+publish = false
+
+[dependencies]
+tizen = { git = "https://github.com/smohantty/rust-tizen.git", features = ["screenshot"] }
+# Encodes the captured XRGB8888 frame to PNG so the example produces an
+# actually-viewable file. Defaults disabled to keep the build small (no
+# deflate compression — we trade size for fewer transitive deps).
+png   = { version = "0.17", default-features = false }
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

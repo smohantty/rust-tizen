@@ -172,6 +172,7 @@ dependencies = [
  "tizen-app",
  "tizen-dlog",
  "tizen-input",
+ "tizen-screenshot",
 ]
 
 [[package]]
@@ -216,6 +217,26 @@ name = "tizen-input-sys"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-scanner",
+]
+
+[[package]]
+name = "tizen-screenshot"
+version = "0.1.0"
+dependencies = [
+ "tizen-screenshot-sys",
+ "wayland-backend",
+ "wayland-client",
+]
+
+[[package]]
+name = "tizen-screenshot-sys"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "libloading",
  "wayland-backend",
  "wayland-client",
  "wayland-scanner",

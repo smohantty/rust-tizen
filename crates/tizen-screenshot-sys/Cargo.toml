@@ -1,0 +1,25 @@
+[package]
+name = "tizen-screenshot-sys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Raw client bindings for the Tizen `tizen_screenshooter` Wayland protocol + libtbm / libwayland-tbm-client FFI"
+categories = ["external-ffi-bindings"]
+keywords = ["tizen", "wayland", "screenshot", "tbm", "ffi"]
+readme = "README.md"
+
+[lib]
+
+[dependencies]
+wayland-client  = { workspace = true }
+wayland-backend = { workspace = true }
+wayland-scanner = { workspace = true }
+bitflags        = { workspace = true }
+libloading      = "0.8"
+
+[lints]
+workspace = true

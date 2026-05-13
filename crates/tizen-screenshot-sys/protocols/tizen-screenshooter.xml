@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="tizen_screenshooter_extension">
+  <copyright>
+    Copyright © 2015-2017 Samsung Electronics co., Ltd. All Rights Reserved.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    This file is a trimmed extract of upstream `tizen-extension.xml`
+    from the Tizen `wayland-extension` repository, containing only the
+    `tizen_screenshooter` interface (the streaming `tizen_screenmirror`
+    sibling is intentionally omitted from this initial slice). See
+    UPSTREAM.txt for the source commit.
+  </copyright>
+
+  <interface name="tizen_screenshooter" version="4">
+    <description summary="interface for tizen-screenshooter">
+      Clients can take one-shot screenshots into a wl_buffer they supplied.
+      Only the one-shot subset is wrapped here; the `get_screenmirror`
+      request is omitted from this vendored slice.
+    </description>
+
+    <request name="set_oneshot_auto_rotation">
+      <description summary="set screen shot auto rotation value">
+        Client can set auto rotation value for one shot.
+      </description>
+      <arg name="set" type="uint"/>
+    </request>
+
+    <event name="format">
+      <description summary="supported format for screenshooter">
+        The tbm format codes match the #defines in tbm_surface.h. The
+        formats actually supported by the compositor will be reported
+        by the format event.
+      </description>
+      <arg name="format" type="uint"/>
+    </event>
+
+    <event name="screenshooter_notify">
+      <description summary="send notification of screenshooter">
+        Clients can get notification of screenshooter.
+      </description>
+      <arg name="noti" type="uint"/>
+    </event>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the tizen_screenshooter"/>
+    </request>
+
+    <!-- version 3 additions: synchronous one-shot capture -->
+    <request name="shoot" since="3">
+      <arg name="output" type="object" interface="wl_output"/>
+      <arg name="buffer" type="object" interface="wl_buffer"/>
+    </request>
+
+    <event name="done" since="3"/>
+
+    <!-- version 4 additions: area capture -->
+    <request name="area_shoot" since="4">
+      <description summary="get area color value">
+        Client can get area color value.
+      </description>
+      <arg name="output" type="object" interface="wl_output"/>
+      <arg name="buffer" type="object" interface="wl_buffer"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="w" type="int"/>
+      <arg name="h" type="int"/>
+    </request>
+
+    <event name="area_shoot_done" since="4"/>
+  </interface>
+</protocol>

@@ -11,10 +11,12 @@
 //! | `app`       | [`app`]       | [`tizen-app`]            |
 //! | `app-tokio` | [`app`]       | [`tizen-app`] + tokio    |
 //! | `input`     | [`input`]     | [`tizen-input`]          |
+//! | `screenshot`| [`screenshot`]| [`tizen-screenshot`]     |
 //!
 //! [`tizen-dlog`]: https://crates.io/crates/tizen-dlog
 //! [`tizen-app`]: https://crates.io/crates/tizen-app
 //! [`tizen-input`]: https://crates.io/crates/tizen-input
+//! [`tizen-screenshot`]: https://crates.io/crates/tizen-screenshot
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
@@ -35,3 +37,9 @@ pub use tizen_app as app;
 #[cfg(feature = "input")]
 #[cfg_attr(docsrs, doc(cfg(feature = "input")))]
 pub use tizen_input as input;
+
+/// One-shot screenshot capture from the Tizen compositor via the
+/// `tizen_screenshooter` Wayland protocol + TBM-backed buffers.
+#[cfg(feature = "screenshot")]
+#[cfg_attr(docsrs, doc(cfg(feature = "screenshot")))]
+pub use tizen_screenshot as screenshot;

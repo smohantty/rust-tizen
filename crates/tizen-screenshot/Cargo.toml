@@ -1,0 +1,23 @@
+[package]
+name = "tizen-screenshot"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Capture screenshots from a Tizen Wayland compositor via tizen_screenshooter + TBM"
+categories = ["api-bindings", "multimedia::images"]
+keywords = ["tizen", "wayland", "screenshot", "tbm"]
+readme = "README.md"
+
+[dependencies]
+tizen-screenshot-sys = { workspace = true }
+wayland-client       = { workspace = true }
+# `client_system` + `dlopen` matches the rest of the project (no
+# build-time link to libwayland-client.so).
+wayland-backend      = { workspace = true, features = ["client_system", "dlopen"] }
+
+[lints]
+workspace = true
