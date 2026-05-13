@@ -12,11 +12,13 @@
 //! | `app-tokio` | [`app`]       | [`tizen-app`] + tokio    |
 //! | `input`     | [`input`]     | [`tizen-input`]          |
 //! | `screenshot`| [`screenshot`]| [`tizen-screenshot`]     |
+//! | `window`    | [`window`]    | [`tizen-window`]         |
 //!
 //! [`tizen-dlog`]: https://crates.io/crates/tizen-dlog
 //! [`tizen-app`]: https://crates.io/crates/tizen-app
 //! [`tizen-input`]: https://crates.io/crates/tizen-input
 //! [`tizen-screenshot`]: https://crates.io/crates/tizen-screenshot
+//! [`tizen-window`]: https://crates.io/crates/tizen-window
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
@@ -43,3 +45,9 @@ pub use tizen_input as input;
 #[cfg(feature = "screenshot")]
 #[cfg_attr(docsrs, doc(cfg(feature = "screenshot")))]
 pub use tizen_screenshot as screenshot;
+
+/// Native Tizen Wayland window via `zxdg_shell_v6` + `wtz_shell` +
+/// TBM-backed buffers. EFL-free.
+#[cfg(feature = "window")]
+#[cfg_attr(docsrs, doc(cfg(feature = "window")))]
+pub use tizen_window as window;

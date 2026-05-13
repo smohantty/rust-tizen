@@ -173,6 +173,7 @@ dependencies = [
  "tizen-dlog",
  "tizen-input",
  "tizen-screenshot",
+ "tizen-window",
 ]
 
 [[package]]
@@ -236,7 +237,34 @@ name = "tizen-screenshot-sys"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tizen-tbm-sys",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-scanner",
+]
+
+[[package]]
+name = "tizen-tbm-sys"
+version = "0.1.0"
+dependencies = [
  "libloading",
+]
+
+[[package]]
+name = "tizen-window"
+version = "0.1.0"
+dependencies = [
+ "tizen-tbm-sys",
+ "tizen-window-sys",
+ "wayland-backend",
+ "wayland-client",
+]
+
+[[package]]
+name = "tizen-window-sys"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
  "wayland-backend",
  "wayland-client",
  "wayland-scanner",

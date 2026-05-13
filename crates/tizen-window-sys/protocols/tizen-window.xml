@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="tizen_window_extension">
+  <copyright>
+    Copyright © 2023 Samsung Electronics Co., Ltd.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    This file is a trimmed merge of:
+      - protocol/tizen/wtz-shell.xml         (full)
+      - protocol/tizen/wtz-screen.xml        (just `wtz_screen`, no splitscreen)
+    from the Tizen wayland-extension repository. The two interfaces are
+    in one protocol file so wayland-scanner can resolve the cross-
+    interface `wtz_surface.screen` reference in a single pass.
+  </copyright>
+
+  <interface name="wtz_screen" version="1">
+    <description summary="tizen logical screen (minimal slice)">
+      Trimmed: only the bits referenced by `wtz_surface.screen`. Full
+      protocol (size/name events, splitscreen requests, …) lives in
+      upstream `wtz-screen.xml`; not needed for window creation.
+    </description>
+
+    <enum name="error">
+      <entry name="none" value="0" summary="none"/>
+      <entry name="invalid_parameter" value="1" summary="invalid parameter"/>
+      <entry name="not_supported" value="2" summary="no support"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the wtz_screen object"/>
+    </request>
+  </interface>
+
+  <interface name="wtz_shell" version="1">
+    <description summary="create tizen-style surfaces">
+      wtz_shell allows clients to turn a wl_surface into a wtz_surface
+      which can support the Tizen features in Tizen Display Server.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the wtz_shell object"/>
+    </request>
+
+    <request name="get_wtz_surface">
+      <description summary="create a tizen shell surface from a surface">
+        This creates a wtz_surface for the given surface.
+      </description>
+      <arg name="id" type="new_id" interface="wtz_surface"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="wtz_surface" version="1">
+    <description summary="tizen-specific user interface surface">
+      An interface that may be implemented by a wl_surface, for
+      implementations that provide a tizen-specific user interface.
+    </description>
+
+    <enum name="decoration_type">
+      <description summary="type of decoration"/>
+      <entry name="none" value="0" summary="no decoration"/>
+      <entry name="client_side" value="1" summary="the client-side decoration"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the wtz_surface"/>
+    </request>
+
+    <event name="decoration">
+      <description summary="capability of the client-side decoration"/>
+      <arg name="type" type="uint" enum="decoration_type"/>
+    </event>
+
+    <event name="screen">
+      <description summary="tizen screen which this surface locates"/>
+      <arg name="screen" type="object" interface="wtz_screen"/>
+    </event>
+  </interface>
+</protocol>

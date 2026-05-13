@@ -1,24 +1,25 @@
-//! Raw client bindings for the Tizen `tizen_screenshooter` Wayland protocol
-//! plus the FFI surface efl_util uses against `libtbm.so` and
-//! `libwayland-tbm-client.so`.
+//! Raw client bindings for the Tizen `tizen_screenshooter` Wayland
+//! protocol.
 //!
-//! Like `tizen-input-sys` this crate is **not** `#![no_std]` — the
-//! `wayland-scanner` output uses `String`/`Vec`. The hand-rolled C FFI half
-//! is plain `extern "C"` though, and the safe wrapper in `tizen-screenshot`
-//! still gates everything on `cfg(tizen)`.
+//! The TBM half of what efl_util_screenshot.c uses now lives in the
+//! shared [`tizen-tbm-sys`] crate and is re-exported from here for
+//! source compatibility.
 //!
 //! ## Library availability
 //!
-//! * `libtbm.so.1` ships in the Tizen Studio rootstrap, so it is linked
-//!   directly via `#[cfg_attr(tizen, link(name = "tbm", kind = "dylib"))]`.
-//! * `libwayland-tbm-client.so.0` is **not** in the rootstrap, so the
-//!   handful of functions we need are resolved at runtime via
-//!   `libloading::Library::new("libwayland-tbm-client.so.0")`. The .so is
-//!   present on every Tizen device.
+//! * `libwayland-client.so.0` is dlopen'd by `wayland-backend`.
+//! * `libtbm.so.1` and `libwayland-tbm-client.so.0` are resolved as
+//!   documented in [`tizen-tbm-sys`].
+//!
+//! [`tizen-tbm-sys`]: https://crates.io/crates/tizen-tbm-sys
 
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 #![allow(clippy::all)]
 
 pub mod protocol;
-pub mod tbm;
-pub mod wayland_tbm;
+
+// Re-exports for downstream source compatibility: old call sites do
+// `use tizen_screenshot_sys::{tbm, wayland_tbm};`. New code should
+// import directly from `tizen-tbm-sys`.
+pub use tizen_tbm_sys::tbm;
+pub use tizen_tbm_sys::wayland_tbm;

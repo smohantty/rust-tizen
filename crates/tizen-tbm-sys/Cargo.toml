@@ -1,0 +1,21 @@
+[package]
+name = "tizen-tbm-sys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Raw FFI for libtbm + libwayland-tbm-client — shared TBM bindings for Tizen Wayland crates"
+categories = ["external-ffi-bindings"]
+keywords = ["tizen", "tbm", "wayland", "ffi", "bindings"]
+readme = "README.md"
+
+[lib]
+
+[dependencies]
+libloading = "0.8"
+
+[lints]
+workspace = true

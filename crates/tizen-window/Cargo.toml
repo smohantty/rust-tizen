@@ -1,0 +1,22 @@
+[package]
+name = "tizen-window"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Native Tizen Wayland window — zxdg_shell_v6 + wtz_shell + TBM, EFL-free"
+categories = ["api-bindings", "gui"]
+keywords = ["tizen", "wayland", "window", "xdg-shell", "tbm"]
+readme = "README.md"
+
+[dependencies]
+tizen-window-sys = { workspace = true }
+tizen-tbm-sys    = { workspace = true }
+wayland-client   = { workspace = true }
+wayland-backend  = { workspace = true, features = ["client_system", "dlopen"] }
+
+[lints]
+workspace = true

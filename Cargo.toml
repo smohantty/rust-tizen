@@ -24,8 +24,11 @@ tizen-app-sys = { version = "0.1.0", path = "crates/tizen-app-sys" }
 tizen-app = { version = "0.1.0", path = "crates/tizen-app" }
 tizen-input-sys = { version = "0.1.0", path = "crates/tizen-input-sys" }
 tizen-input = { version = "0.1.0", path = "crates/tizen-input" }
+tizen-tbm-sys = { version = "0.1.0", path = "crates/tizen-tbm-sys" }
 tizen-screenshot-sys = { version = "0.1.0", path = "crates/tizen-screenshot-sys" }
 tizen-screenshot = { version = "0.1.0", path = "crates/tizen-screenshot" }
+tizen-window-sys = { version = "0.1.0", path = "crates/tizen-window-sys" }
+tizen-window = { version = "0.1.0", path = "crates/tizen-window" }
 
 # `cargo tizen build` injects `--cfg tizen`; register it as an expected cfg.
 [workspace.lints.rust.unexpected_cfgs]

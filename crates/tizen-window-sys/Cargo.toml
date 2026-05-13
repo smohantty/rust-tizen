@@ -1,5 +1,5 @@
 [package]
-name = "tizen-screenshot-sys"
+name = "tizen-window-sys"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,15 +7,14 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
-description = "Raw client bindings for the Tizen `tizen_screenshooter` Wayland protocol + libtbm / libwayland-tbm-client FFI"
+description = "Raw client bindings for the Wayland protocols a Tizen window uses (zxdg_shell_v6 + wtz_shell)"
 categories = ["external-ffi-bindings"]
-keywords = ["tizen", "wayland", "screenshot", "tbm", "ffi"]
+keywords = ["tizen", "wayland", "window", "xdg-shell", "ffi"]
 readme = "README.md"
 
 [lib]
 
 [dependencies]
-tizen-tbm-sys   = { workspace = true }
 wayland-client  = { workspace = true }
 wayland-backend = { workspace = true }
 wayland-scanner = { workspace = true }
