@@ -7,7 +7,6 @@
 
 #![warn(missing_docs)]
 
-use core::marker::PhantomData;
 use std::ffi::c_void;
 use std::fmt;
 use std::ptr::NonNull;
@@ -51,18 +50,31 @@ impl std::error::Error for Error {}
 /// A `wl_egl_window` — the Wayland-side glue between a `wl_surface`
 /// and an EGL window surface.
 ///
-/// The lifetime parameter ties the `EglWindow` to the window whose
-/// surface it wraps. The underlying `wl_surface *` must outlive this
-/// handle, which the borrow enforces.
-pub struct EglWindow<'w> {
+/// `EglWindow` does **not** carry a lifetime parameter pinning it to
+/// the windowing handle. Like [`glutin`]'s `Surface`, the contract is
+/// upheld by the caller: keep the windowing handle alive at least
+/// until `EglWindow` is dropped. Rust's lexical drop order makes this
+/// automatic when both values are bindings in the same scope (`let
+/// window = ...; let egl = EglWindow::new(&window, ...)`; both drop
+/// in reverse order at end of scope — `egl` first).
+///
+/// [`glutin`]: https://docs.rs/glutin
+pub struct EglWindow {
     ptr: NonNull<wl_egl_window>,
-    _surface: PhantomData<&'w ()>,
 }
 
-impl<'w> EglWindow<'w> {
+impl EglWindow {
     /// Build a `wl_egl_window` from any window that exposes a
     /// [`raw_window_handle::WaylandWindowHandle`].
-    pub fn new<W>(window: &'w W, width: u32, height: u32) -> Result<Self>
+    ///
+    /// # Safety
+    ///
+    /// The windowing handle's underlying `wl_surface *` must remain
+    /// alive until this `EglWindow` is dropped. The implementation
+    /// stores a raw `wl_surface *` inside the returned object (via
+    /// `wl_egl_window_create`); if the surface drops first, every
+    /// subsequent EGL operation against this window is UB.
+    pub unsafe fn new<W>(window: &W, width: u32, height: u32) -> Result<Self>
     where
         W: HasWindowHandle,
     {
@@ -73,17 +85,12 @@ impl<'w> EglWindow<'w> {
         let RawWindowHandle::Wayland(wl) = handle.as_raw() else {
             return Err(Error::NotWayland);
         };
-        // SAFETY: `wl.surface` is a live `wl_surface *` for as long as
-        // the borrow `&'w W` is held (the raw-window-handle contract).
-        let raw = unsafe {
-            tizen_egl_sys::create(wl.surface.as_ptr(), width as i32, height as i32)
-                .map_err(Error::LibraryLoad)?
-        };
+        // SAFETY: caller asserts `wl.surface` outlives the returned
+        // `EglWindow`; we just forward the raw pointer.
+        let raw = tizen_egl_sys::create(wl.surface.as_ptr(), width as i32, height as i32)
+            .map_err(Error::LibraryLoad)?;
         NonNull::new(raw)
-            .map(|nn| Self {
-                ptr: nn,
-                _surface: PhantomData,
-            })
+            .map(|nn| Self { ptr: nn })
             .ok_or(Error::CreateFailed)
     }
 
@@ -107,7 +114,7 @@ impl<'w> EglWindow<'w> {
     }
 }
 
-impl Drop for EglWindow<'_> {
+impl Drop for EglWindow {
     fn drop(&mut self) {
         // SAFETY: `self.ptr` came from a successful `create`; we never
         // expose it for double-free. `destroy` silently no-ops if the

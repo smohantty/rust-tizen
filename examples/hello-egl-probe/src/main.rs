@@ -47,7 +47,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (w, h) = window.size();
     println!("hello-egl-probe: window {w}x{h}");
 
-    let egl_window = EglWindow::new(&window, w, h)?;
+    // SAFETY: `window` is kept alive for the rest of `run`, which is
+    // strictly longer than `egl_window`.
+    let egl_window = unsafe { EglWindow::new(&window, w, h)? };
 
     // Load libEGL.so.1 from the device.
     let egl_lib = unsafe { egl::DynamicInstance::<egl::EGL1_4>::load_required()? };
