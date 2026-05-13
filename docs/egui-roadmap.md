@@ -19,10 +19,11 @@ framework or windowing abstraction**. They expose only generic
 Wayland/GLES/TBM primitives plus the standard ecosystem interop
 traits (`raw-window-handle`).
 
-All UI-framework wiring lives in the **example crates** under
-`examples/`. So today's example is `hello-egui-gpu`; tomorrow's
-might be `hello-slint-gpu` or `hello-iced-gpu`, and each is a thin
-glue file using only the platform crates' public API.
+UI-framework wiring lives above the platform crates: either in a
+small framework adapter crate (for example `tizen-egui`) or, for
+one-off experiments, in an example crate. So today's public egui app
+path is `tizen-egui::run_native`; tomorrow's might be a `tizen-slint`
+or `tizen-iced` adapter built on the same platform primitives.
 
 This keeps `tizen-window` usable by anyone — not just egui — and
 prevents the "the platform crate forces a specific framework on
@@ -261,34 +262,32 @@ rootstrap, no dlopen needed) and exposes an `EglWindow` that
 
 ## Phase 3 — egui hello world
 
-The payoff. `examples/hello-egui-gpu/` opens a window, paints an
-animated egui UI via the GPU.
+The payoff. `examples/hello-egui-gpu/` opens a window and paints an
+animated egui UI via the GPU, while `crates/tizen-egui` owns the
+Tizen/EGL/egui integration code app authors should not have to repeat.
 
-- [x] **3.1 `hello-egui-gpu` crate.** `examples/hello-egui-gpu`,
-      ~190 LOC. Pulls `tizen = { features = ["window", "egl"] }`,
-      `egui = "0.29"`, `egui_glow = "0.29"`, `glow = "0.14"`,
-      `khronos-egl = "6"` with the `dynamic` feature. The bring-up
-      follows the roadmap recipe exactly:
+- [x] **3.1 Raw `hello-egui-gpu` bring-up.** The first version of
+      `examples/hello-egui-gpu` proved the full stack manually:
+      `tizen-window` + `tizen-egl` + `khronos-egl` + `glow` +
+      `egui_glow`. It opened the window, created the `wl_egl_window`,
+      loaded `libEGL`, created a GLES context/surface, built
+      `egui::Context` + `egui_glow::Painter`, ran egui, painted,
+      swapped buffers, and requested the next frame.
 
-      ① open `Window` via `tizen-window`
-      ② build `EglWindow` via `tizen-egl` (note: `unsafe` now;
-        see the EglWindow lifetime refactor in commit 16dddc8)
-      ③ load `libEGL.so` via `khronos-egl::DynamicInstance<EGL1_4>::load_required()`
-      ④ get EGL display from the Wayland `wl_display *`, init,
-        `bind_api(OPENGL_ES_API)`, choose 8/8/8/0 config
-      ⑤ create context — GLES 3 first, fall back to 2
-      ⑥ `create_window_surface(... egl_window.as_ptr() ...)` +
-        `make_current`
-      ⑦ build `glow::Context::from_loader_function(get_proc_address)`
-      ⑧ build `egui::Context` + `egui_glow::Painter`
-      ⑨ `Display::run` closure handles `Resized → egl_window.resize`
-        and `RedrawRequested → run egui → paint → swap_buffers →
-        request_redraw`. UI: a `CentralPanel` with title + frame
-        counter + elapsed seconds, plus an animated floating
-        `Window` with a sine-wave `ProgressBar`. Clear colour also
-        animates in case egui ever stops painting.
+- [x] **3.2 `tizen-egui` adapter.** `crates/tizen-egui` now wraps the
+      raw bring-up into two public layers:
 
-- [x] **3.2 Verify on .234.** Cross-build for armv7l, push via
+      ```rust
+      tizen_egui::TizenEguiGlow   // lower-level adapter
+      tizen_egui::run_native      // app-facing runner
+      ```
+
+      The adapter owns EGL setup, the glow context, `egui_glow::Painter`,
+      Tizen event to egui input conversion, resize handling, repaint
+      scheduling, GL cleanup, and `swap_buffers`. `hello-egui-gpu`
+      now depends only on `tizen-egui` and contains normal egui UI code.
+
+- [x] **3.3 Verify on .234.** Cross-build for armv7l, push via
       `rsdb agent transfer.push`, run on the TV. **Steady 60 FPS,
       visually confirmed** — both windows render (full-screen
       `CentralPanel` + floating "animation" popup with progress

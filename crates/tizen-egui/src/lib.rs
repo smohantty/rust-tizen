@@ -1,0 +1,617 @@
+//! egui integration for `rust-tizen` windows using EGL/GLES.
+//!
+//! `run_native` is the app-facing entry point. `TizenEguiGlow` is the
+//! lower-level adapter for callers that want to own the Tizen event loop.
+
+#![warn(missing_docs)]
+
+use std::fmt;
+use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use glow::HasContext;
+use khronos_egl as egl;
+use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
+use tizen_egl::EglWindow;
+use tizen_window::{Display, Event, ModifiersState, MouseButton, Window, WindowBuilder};
+
+/// Re-export of the egui crate used by this integration.
+pub use egui;
+
+/// Result alias for this crate.
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// Errors returned by the egui/Tizen integration.
+#[derive(Debug)]
+pub enum Error {
+    /// Failure from `tizen-window`.
+    Window(tizen_window::Error),
+    /// Failure from `tizen-egl`.
+    EglWindow(tizen_egl::Error),
+    /// Could not read the display's raw window handle.
+    DisplayHandle(raw_window_handle::HandleError),
+    /// The display is not a Wayland display.
+    NotWaylandDisplay,
+    /// `eglGetDisplay` returned `NO_DISPLAY`.
+    NoEglDisplay,
+    /// No EGL config matched the requested GLES window surface.
+    NoEglConfig,
+    /// Failure from EGL.
+    Egl(egl::Error),
+    /// Failure while loading `libEGL`.
+    EglLoad(String),
+    /// Failure while creating the egui glow painter.
+    Painter(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Window(e) => write!(f, "{e}"),
+            Self::EglWindow(e) => write!(f, "{e}"),
+            Self::DisplayHandle(e) => write!(f, "raw display handle: {e}"),
+            Self::NotWaylandDisplay => f.write_str("display handle is not Wayland"),
+            Self::NoEglDisplay => f.write_str("eglGetDisplay returned NO_DISPLAY"),
+            Self::NoEglConfig => f.write_str("no matching EGL config"),
+            Self::Egl(e) => write!(f, "{e}"),
+            Self::EglLoad(e) => write!(f, "failed to load EGL: {e}"),
+            Self::Painter(e) => write!(f, "egui_glow painter: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<tizen_window::Error> for Error {
+    fn from(value: tizen_window::Error) -> Self {
+        Self::Window(value)
+    }
+}
+
+impl From<tizen_egl::Error> for Error {
+    fn from(value: tizen_egl::Error) -> Self {
+        Self::EglWindow(value)
+    }
+}
+
+impl From<raw_window_handle::HandleError> for Error {
+    fn from(value: raw_window_handle::HandleError) -> Self {
+        Self::DisplayHandle(value)
+    }
+}
+
+impl From<egl::Error> for Error {
+    fn from(value: egl::Error) -> Self {
+        Self::Egl(value)
+    }
+}
+
+/// Options for [`run_native`].
+#[derive(Debug, Clone)]
+pub struct NativeOptions {
+    /// Window title.
+    pub title: String,
+    /// Reverse-DNS Tizen application id.
+    pub app_id: String,
+    /// Requested initial window size in physical pixels.
+    pub size: (u32, u32),
+    /// Native physical pixels per egui point.
+    pub pixels_per_point: f32,
+    /// Clear colour used before egui paints, as linear RGBA floats.
+    pub clear_color: [f32; 4],
+    /// Request a new frame after every paint.
+    ///
+    /// This is useful for demos and animation-heavy apps. Event-driven
+    /// apps can keep this false and call `ctx.request_repaint()` or
+    /// [`Frame::request_repaint`] when needed.
+    pub continuous_repaint: bool,
+}
+
+impl Default for NativeOptions {
+    fn default() -> Self {
+        Self {
+            title: "tizen-egui".to_owned(),
+            app_id: "rust.tizen.egui".to_owned(),
+            size: (1920, 1080),
+            pixels_per_point: 1.0,
+            clear_color: [0.05, 0.05, 0.08, 1.0],
+            continuous_repaint: false,
+        }
+    }
+}
+
+/// Per-frame information passed to the app closure.
+#[derive(Debug)]
+pub struct Frame {
+    frame_nr: u64,
+    start_time: Instant,
+    size: (u32, u32),
+    repaint_requested: bool,
+}
+
+impl Frame {
+    /// Number of frames painted since startup.
+    pub fn frame_nr(&self) -> u64 {
+        self.frame_nr
+    }
+
+    /// Elapsed time since the native runner started.
+    pub fn elapsed(&self) -> Duration {
+        self.start_time.elapsed()
+    }
+
+    /// Current window size in physical pixels.
+    pub fn size(&self) -> (u32, u32) {
+        self.size
+    }
+
+    /// Ask the runner to schedule another frame.
+    pub fn request_repaint(&mut self) {
+        self.repaint_requested = true;
+    }
+}
+
+/// Result of painting one egui frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaintResult {
+    /// True if egui requested another repaint during this frame.
+    pub repaint_requested: bool,
+}
+
+/// Run a complete native egui application on Tizen.
+pub fn run_native<F>(options: NativeOptions, mut app: F) -> Result<()>
+where
+    F: FnMut(&egui::Context, &mut Frame),
+{
+    let egui_options = TizenEguiOptions::from(&options);
+    let mut display = Display::connect()?;
+    let mut window = WindowBuilder::new()
+        .title(options.title)
+        .app_id(options.app_id)
+        .size(options.size.0, options.size.1)
+        .build(&display)?;
+
+    display.roundtrip(&mut window)?;
+
+    // SAFETY: `run_native` owns `window` and `egui` in the same stack
+    // frame. `egui` is created after `window` and destroyed before
+    // `window` goes out of scope.
+    let mut egui = unsafe { TizenEguiGlow::new(&display, &window, egui_options)? };
+
+    let start_time = Instant::now();
+    let mut frame_nr = 0_u64;
+    window.request_redraw();
+
+    while !window.should_close() {
+        let pending: Vec<Event> = window.drain_events().collect();
+        for event in pending {
+            let input_changed = egui.handle_event(&event);
+
+            match event {
+                Event::Resized { width, height } => {
+                    egui.resize(width, height)?;
+                    window.request_redraw();
+                }
+                Event::RedrawRequested => {
+                    let mut frame = Frame {
+                        frame_nr,
+                        start_time,
+                        size: window.size(),
+                        repaint_requested: false,
+                    };
+                    let paint_result = egui.run_and_paint(&window, |ctx| app(ctx, &mut frame))?;
+                    frame_nr += 1;
+
+                    if options.continuous_repaint
+                        || frame.repaint_requested
+                        || paint_result.repaint_requested
+                    {
+                        window.request_redraw();
+                    }
+                }
+                Event::CloseRequested => {}
+                _ if input_changed => window.request_redraw(),
+                _ => {}
+            }
+        }
+
+        if window.should_close() {
+            break;
+        }
+
+        display.dispatch_pending(&mut window)?;
+    }
+
+    egui.destroy();
+    Ok(())
+}
+
+/// Options for constructing [`TizenEguiGlow`] directly.
+#[derive(Debug, Clone)]
+pub struct TizenEguiOptions {
+    /// Native physical pixels per egui point.
+    pub pixels_per_point: f32,
+    /// Clear colour used before egui paints, as linear RGBA floats.
+    pub clear_color: [f32; 4],
+}
+
+impl Default for TizenEguiOptions {
+    fn default() -> Self {
+        Self {
+            pixels_per_point: 1.0,
+            clear_color: [0.05, 0.05, 0.08, 1.0],
+        }
+    }
+}
+
+impl From<&NativeOptions> for TizenEguiOptions {
+    fn from(value: &NativeOptions) -> Self {
+        Self {
+            pixels_per_point: value.pixels_per_point,
+            clear_color: value.clear_color,
+        }
+    }
+}
+
+/// Low-level egui + glow adapter for a `tizen-window` window.
+///
+/// This owns the EGL surface/context, glow context, egui context, and
+/// `egui_glow::Painter`. It does not own the Tizen `Window`; callers
+/// using this type directly must keep the window alive until after this
+/// adapter is destroyed.
+pub struct TizenEguiGlow {
+    egui_ctx: egui::Context,
+    raw_input: egui::RawInput,
+    pointer_pos: Option<egui::Pos2>,
+    modifiers: egui::Modifiers,
+    focused: bool,
+    pixels_per_point: f32,
+    clear_color: [f32; 4],
+    repaint_requested: Arc<AtomicBool>,
+    painter: egui_glow::Painter,
+    gl: Arc<glow::Context>,
+    egl: EglState,
+    destroyed: bool,
+}
+
+impl TizenEguiGlow {
+    /// Create the adapter for an existing Tizen display and window.
+    ///
+    /// # Safety
+    ///
+    /// The window's underlying `wl_surface` must outlive this adapter.
+    /// Create this after the window, and destroy/drop it before the
+    /// window is dropped.
+    pub unsafe fn new(
+        display: &Display,
+        window: &Window,
+        options: TizenEguiOptions,
+    ) -> Result<Self> {
+        let egl = unsafe { EglState::new(display, window)? };
+        let gl = Arc::new(unsafe {
+            glow::Context::from_loader_function(|name| {
+                egl.lib
+                    .get_proc_address(name)
+                    .map(|p| p as *const _)
+                    .unwrap_or(ptr::null())
+            })
+        });
+
+        let painter = egui_glow::Painter::new(gl.clone(), "", None, false)
+            .map_err(|e| Error::Painter(e.to_string()))?;
+        let egui_ctx = egui::Context::default();
+        egui_ctx.set_pixels_per_point(options.pixels_per_point);
+
+        let repaint_requested = Arc::new(AtomicBool::new(false));
+        let repaint_flag = Arc::clone(&repaint_requested);
+        egui_ctx.set_request_repaint_callback(move |_| {
+            repaint_flag.store(true, Ordering::Relaxed);
+        });
+
+        Ok(Self {
+            egui_ctx,
+            raw_input: egui::RawInput::default(),
+            pointer_pos: None,
+            modifiers: egui::Modifiers::default(),
+            focused: true,
+            pixels_per_point: options.pixels_per_point,
+            clear_color: options.clear_color,
+            repaint_requested,
+            painter,
+            gl,
+            egl,
+            destroyed: false,
+        })
+    }
+
+    /// Access the egui context.
+    pub fn context(&self) -> &egui::Context {
+        &self.egui_ctx
+    }
+
+    /// Convert a Tizen window event into egui input.
+    ///
+    /// Returns true when the event should trigger a repaint.
+    pub fn handle_event(&mut self, event: &Event) -> bool {
+        match *event {
+            Event::Focused(focused) => {
+                self.focused = focused;
+                self.raw_input
+                    .events
+                    .push(egui::Event::WindowFocused(focused));
+                true
+            }
+            Event::CursorEntered { x, y } | Event::CursorMoved { x, y } => {
+                let pos = self.to_egui_pos(x, y);
+                self.pointer_pos = Some(pos);
+                self.raw_input.events.push(egui::Event::PointerMoved(pos));
+                true
+            }
+            Event::CursorLeft => {
+                self.pointer_pos = None;
+                self.raw_input.events.push(egui::Event::PointerGone);
+                true
+            }
+            Event::MouseInput { button, pressed } => {
+                if let (Some(pos), Some(button)) = (self.pointer_pos, map_mouse_button(button)) {
+                    self.raw_input.events.push(egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed,
+                        modifiers: self.modifiers,
+                    });
+                    true
+                } else {
+                    false
+                }
+            }
+            Event::MouseWheel { dx, dy } => {
+                self.raw_input.events.push(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: egui::vec2(dx as f32, dy as f32),
+                    modifiers: self.modifiers,
+                });
+                true
+            }
+            Event::KeyboardInput {
+                keycode,
+                pressed,
+                modifiers,
+            } => {
+                self.modifiers = map_modifiers(modifiers);
+                self.raw_input.modifiers = self.modifiers;
+                if let Some(key) = map_key(keycode) {
+                    self.raw_input.events.push(egui::Event::Key {
+                        key,
+                        physical_key: Some(key),
+                        pressed,
+                        repeat: false,
+                        modifiers: self.modifiers,
+                    });
+                    true
+                } else {
+                    false
+                }
+            }
+            Event::Resized { .. } | Event::RedrawRequested | Event::CloseRequested => false,
+            _ => false,
+        }
+    }
+
+    /// Resize the underlying EGL window.
+    pub fn resize(&mut self, width: u32, height: u32) -> Result<()> {
+        self.egl.egl_window.resize(width, height, 0, 0)?;
+        Ok(())
+    }
+
+    /// Run one egui pass and paint it to the current EGL surface.
+    pub fn run_and_paint<F>(&mut self, window: &Window, run_ui: F) -> Result<PaintResult>
+    where
+        F: FnMut(&egui::Context),
+    {
+        self.repaint_requested.store(false, Ordering::Relaxed);
+
+        let (width, height) = window.size();
+        self.raw_input.screen_rect = Some(egui::Rect::from_min_size(
+            egui::pos2(0.0, 0.0),
+            egui::vec2(
+                width as f32 / self.pixels_per_point,
+                height as f32 / self.pixels_per_point,
+            ),
+        ));
+        self.raw_input.time = Some(self.egl.start.elapsed().as_secs_f64());
+        self.raw_input.focused = self.focused;
+        self.raw_input.modifiers = self.modifiers;
+
+        let raw_input = self.raw_input.take();
+        let full_output = self.egui_ctx.run(raw_input, run_ui);
+        let primitives = self
+            .egui_ctx
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
+
+        unsafe {
+            self.gl.viewport(0, 0, width as i32, height as i32);
+            self.gl.clear_color(
+                self.clear_color[0],
+                self.clear_color[1],
+                self.clear_color[2],
+                self.clear_color[3],
+            );
+            self.gl.clear(glow::COLOR_BUFFER_BIT);
+        }
+
+        self.painter.paint_and_update_textures(
+            [width, height],
+            full_output.pixels_per_point,
+            &primitives,
+            &full_output.textures_delta,
+        );
+        self.egl
+            .lib
+            .swap_buffers(self.egl.display, self.egl.surface)?;
+
+        Ok(PaintResult {
+            repaint_requested: self.repaint_requested.swap(false, Ordering::Relaxed),
+        })
+    }
+
+    /// Explicitly destroy GL resources owned by the egui painter.
+    pub fn destroy(&mut self) {
+        if !self.destroyed {
+            self.painter.destroy();
+            self.destroyed = true;
+        }
+    }
+
+    fn to_egui_pos(&self, x: f64, y: f64) -> egui::Pos2 {
+        egui::pos2(
+            x as f32 / self.pixels_per_point,
+            y as f32 / self.pixels_per_point,
+        )
+    }
+}
+
+impl Drop for TizenEguiGlow {
+    fn drop(&mut self) {
+        self.destroy();
+    }
+}
+
+struct EglState {
+    lib: egl::DynamicInstance<egl::EGL1_4>,
+    display: egl::Display,
+    context: egl::Context,
+    surface: egl::Surface,
+    egl_window: EglWindow,
+    start: Instant,
+}
+
+impl EglState {
+    unsafe fn new(display: &Display, window: &Window) -> Result<Self> {
+        let (width, height) = window.size();
+        let egl_window = unsafe { EglWindow::new(window, width, height)? };
+        let lib = unsafe {
+            egl::DynamicInstance::<egl::EGL1_4>::load_required()
+                .map_err(|e| Error::EglLoad(e.to_string()))?
+        };
+
+        let wl_display_ptr = match display.display_handle()?.as_raw() {
+            RawDisplayHandle::Wayland(wl) => wl.display.as_ptr(),
+            _ => return Err(Error::NotWaylandDisplay),
+        };
+        let egl_display = unsafe { lib.get_display(wl_display_ptr).ok_or(Error::NoEglDisplay)? };
+        lib.initialize(egl_display)?;
+        lib.bind_api(egl::OPENGL_ES_API)?;
+
+        let config = choose_config(&lib, egl_display)?;
+        let context = match create_context(&lib, egl_display, config, 3) {
+            Ok(context) => context,
+            Err(_) => create_context(&lib, egl_display, config, 2)?,
+        };
+        let surface =
+            unsafe { lib.create_window_surface(egl_display, config, egl_window.as_ptr(), None)? };
+        lib.make_current(egl_display, Some(surface), Some(surface), Some(context))?;
+
+        Ok(Self {
+            lib,
+            display: egl_display,
+            context,
+            surface,
+            egl_window,
+            start: Instant::now(),
+        })
+    }
+}
+
+impl Drop for EglState {
+    fn drop(&mut self) {
+        let _ = self.lib.make_current(self.display, None, None, None);
+        let _ = self.lib.destroy_surface(self.display, self.surface);
+        let _ = self.lib.destroy_context(self.display, self.context);
+        let _ = self.lib.terminate(self.display);
+    }
+}
+
+fn choose_config(
+    lib: &egl::DynamicInstance<egl::EGL1_4>,
+    display: egl::Display,
+) -> Result<egl::Config> {
+    let attrs = [
+        egl::SURFACE_TYPE,
+        egl::WINDOW_BIT,
+        egl::RED_SIZE,
+        8,
+        egl::GREEN_SIZE,
+        8,
+        egl::BLUE_SIZE,
+        8,
+        egl::ALPHA_SIZE,
+        0,
+        egl::DEPTH_SIZE,
+        0,
+        egl::STENCIL_SIZE,
+        0,
+        egl::RENDERABLE_TYPE,
+        egl::OPENGL_ES2_BIT,
+        egl::NONE,
+    ];
+
+    lib.choose_first_config(display, &attrs)?
+        .ok_or(Error::NoEglConfig)
+}
+
+fn create_context(
+    lib: &egl::DynamicInstance<egl::EGL1_4>,
+    display: egl::Display,
+    config: egl::Config,
+    client_version: i32,
+) -> Result<egl::Context> {
+    let attrs = [egl::CONTEXT_CLIENT_VERSION, client_version, egl::NONE];
+    Ok(lib.create_context(display, config, None, &attrs)?)
+}
+
+fn map_mouse_button(button: MouseButton) -> Option<egui::PointerButton> {
+    match button {
+        MouseButton::Left => Some(egui::PointerButton::Primary),
+        MouseButton::Right => Some(egui::PointerButton::Secondary),
+        MouseButton::Middle => Some(egui::PointerButton::Middle),
+        MouseButton::Back => Some(egui::PointerButton::Extra1),
+        MouseButton::Forward => Some(egui::PointerButton::Extra2),
+        MouseButton::Other(_) => None,
+        _ => None,
+    }
+}
+
+fn map_modifiers(modifiers: ModifiersState) -> egui::Modifiers {
+    let ctrl = modifiers.contains(ModifiersState::CTRL);
+    egui::Modifiers {
+        alt: modifiers.contains(ModifiersState::ALT),
+        ctrl,
+        shift: modifiers.contains(ModifiersState::SHIFT),
+        mac_cmd: false,
+        command: ctrl,
+    }
+}
+
+fn map_key(keycode: u32) -> Option<egui::Key> {
+    match keycode {
+        1 | 158 => Some(egui::Key::Escape),
+        14 => Some(egui::Key::Backspace),
+        15 => Some(egui::Key::Tab),
+        28 => Some(egui::Key::Enter),
+        57 => Some(egui::Key::Space),
+        102 => Some(egui::Key::Home),
+        103 => Some(egui::Key::ArrowUp),
+        104 => Some(egui::Key::PageUp),
+        105 => Some(egui::Key::ArrowLeft),
+        106 => Some(egui::Key::ArrowRight),
+        107 => Some(egui::Key::End),
+        108 => Some(egui::Key::ArrowDown),
+        109 => Some(egui::Key::PageDown),
+        110 => Some(egui::Key::Insert),
+        111 => Some(egui::Key::Delete),
+        _ => None,
+    }
+}

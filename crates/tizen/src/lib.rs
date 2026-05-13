@@ -13,12 +13,16 @@
 //! | `input`     | [`input`]     | [`tizen-input`]          |
 //! | `screenshot`| [`screenshot`]| [`tizen-screenshot`]     |
 //! | `window`    | [`window`]    | [`tizen-window`]         |
+//! | `egl`       | [`egl`]       | [`tizen-egl`]            |
+//! | `egui`      | [`egui`]      | [`tizen-egui`]           |
 //!
 //! [`tizen-dlog`]: https://crates.io/crates/tizen-dlog
 //! [`tizen-app`]: https://crates.io/crates/tizen-app
 //! [`tizen-input`]: https://crates.io/crates/tizen-input
 //! [`tizen-screenshot`]: https://crates.io/crates/tizen-screenshot
 //! [`tizen-window`]: https://crates.io/crates/tizen-window
+//! [`tizen-egl`]: https://crates.io/crates/tizen-egl
+//! [`tizen-egui`]: https://crates.io/crates/tizen-egui
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
@@ -57,3 +61,8 @@ pub use tizen_window as window;
 #[cfg(feature = "egl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "egl")))]
 pub use tizen_egl as egl;
+
+/// egui integration for Tizen windows using EGL/GLES via `egui_glow`.
+#[cfg(feature = "egui")]
+#[cfg_attr(docsrs, doc(cfg(feature = "egui")))]
+pub use tizen_egui as egui;

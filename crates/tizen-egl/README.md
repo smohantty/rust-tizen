@@ -15,14 +15,16 @@ use tizen_egl::EglWindow;
 let display = Display::connect()?;
 let window = WindowBuilder::new().size(1920, 1080).build(&display)?;
 
-let egl = EglWindow::new(&window, 1920, 1080)?;
+// SAFETY: keep `window` alive until after `egl` is dropped.
+let egl = unsafe { EglWindow::new(&window, 1920, 1080)? };
 // hand egl.as_ptr() to eglCreateWindowSurface(...).
 # Ok::<_, Box<dyn std::error::Error>>(())
 ```
 
-The lifetime parameter on `EglWindow<'w>` keeps the windowing handle
-alive for as long as the EGL window holds a pointer into it — the
-compiler enforces ordering instead of a runtime contract.
+`EglWindow` stores a raw `wl_surface *` inside the native
+`wl_egl_window`. Keep the windowing handle alive until after the EGL
+window is dropped. In normal lexical code, creating `egl` after
+`window` is enough because Rust drops local bindings in reverse order.
 
 ## Cargo feature
 

@@ -31,6 +31,7 @@ tizen-window-sys = { version = "0.1.0", path = "crates/tizen-window-sys" }
 tizen-window = { version = "0.1.0", path = "crates/tizen-window" }
 tizen-egl-sys = { version = "0.1.0", path = "crates/tizen-egl-sys" }
 tizen-egl = { version = "0.1.0", path = "crates/tizen-egl" }
+tizen-egui = { version = "0.1.0", path = "crates/tizen-egui" }
 
 # `cargo tizen build` injects `--cfg tizen`; register it as an expected cfg.
 [workspace.lints.rust.unexpected_cfgs]

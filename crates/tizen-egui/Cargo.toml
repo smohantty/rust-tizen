@@ -1,0 +1,25 @@
+[package]
+name = "tizen-egui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "egui integration for rust-tizen windows using EGL/GLES via egui_glow"
+categories = ["gui", "rendering"]
+keywords = ["tizen", "egui", "egl", "gles", "wayland"]
+readme = "README.md"
+
+[dependencies]
+tizen-window = { workspace = true }
+tizen-egl = { workspace = true }
+egui = "0.29"
+egui_glow = "0.29"
+glow = "0.14"
+khronos-egl = { version = "6", features = ["dynamic"] }
+raw-window-handle = "0.6"
+
+[lints]
+workspace = true
