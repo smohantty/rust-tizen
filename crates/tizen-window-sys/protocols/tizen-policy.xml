@@ -253,7 +253,10 @@
       <entry name="1" value="0" summary="the bottom default z-order"/>
       <entry name="2" value="1" summary="the bottom midium z-order"/>
       <entry name="3" value="2" summary="the bottom high z-order"/>
-      <entry name="none" value="-1" summary="the bottom lowest z-order"/>
+      <!-- Upstream XML uses value="-1" here, which Rust's wayland-scanner
+           rejects (enum values are u32). The wire value is the C int -1
+           = 0xFFFFFFFF; we expose it as such. Equivalent to upstream. -->
+      <entry name="none" value="4294967295" summary="the bottom lowest z-order"/>
       <entry name="default" value="10" summary="the default z-order"/>
       <entry name="medium" value="20" summary="the medium z-order"/>
       <entry name="high" value="30" summary="the high z-order"/>
