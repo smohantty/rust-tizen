@@ -1,7 +1,8 @@
 //! egui integration for `rust-tizen` windows using EGL/GLES.
 //!
-//! `run_native` is the app-facing entry point. `TizenEguiGlow` is the
-//! lower-level adapter for callers that want to own the Tizen event loop.
+//! Implement [`App`] and pass it to [`run_native`] for the app-facing
+//! path. [`TizenEguiGlow`] is the lower-level adapter for callers that
+//! want to own the Tizen event loop.
 
 #![warn(missing_docs)]
 
@@ -44,6 +45,8 @@ pub enum Error {
     EglLoad(String),
     /// Failure while creating the egui glow painter.
     Painter(String),
+    /// Failure while constructing the application.
+    AppCreation(String),
 }
 
 impl fmt::Display for Error {
@@ -58,6 +61,7 @@ impl fmt::Display for Error {
             Self::Egl(e) => write!(f, "{e}"),
             Self::EglLoad(e) => write!(f, "failed to load EGL: {e}"),
             Self::Painter(e) => write!(f, "egui_glow painter: {e}"),
+            Self::AppCreation(e) => write!(f, "app creation failed: {e}"),
         }
     }
 }
@@ -85,6 +89,46 @@ impl From<raw_window_handle::HandleError> for Error {
 impl From<egl::Error> for Error {
     fn from(value: egl::Error) -> Self {
         Self::Egl(value)
+    }
+}
+
+/// Function used by [`run_native`] to construct the application after
+/// the Tizen window, EGL context, and egui context are ready.
+pub type AppCreator<'app> = Box<
+    dyn 'app
+        + FnOnce(
+            &CreationContext,
+        )
+            -> std::result::Result<Box<dyn 'app + App>, Box<dyn std::error::Error + Send + Sync>>,
+>;
+
+/// Data passed to [`AppCreator`] while constructing an [`App`].
+pub struct CreationContext {
+    /// The egui context. Use this to configure fonts, visuals, style,
+    /// texture loading, and other egui-global state before the first frame.
+    pub egui_ctx: egui::Context,
+    /// The glow context used by the renderer.
+    pub gl: Option<Arc<glow::Context>>,
+    /// Current window size in physical pixels.
+    pub size: (u32, u32),
+    /// Native physical pixels per egui point.
+    pub pixels_per_point: f32,
+}
+
+/// App model for Tizen egui applications.
+///
+/// This is inspired by `eframe::App`, but backed by `tizen-window` and
+/// `tizen-egui` instead of winit/glutin.
+pub trait App {
+    /// Called each time the UI should repaint.
+    fn update(&mut self, ctx: &egui::Context, frame: &mut Frame);
+
+    /// Called once on shutdown after the final frame.
+    fn on_exit(&mut self, _gl: Option<&glow::Context>) {}
+
+    /// Background clear colour used before egui paints.
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        egui::Color32::from_rgba_unmultiplied(12, 12, 12, 255).to_normalized_gamma_f32()
     }
 }
 
@@ -122,7 +166,7 @@ impl Default for NativeOptions {
     }
 }
 
-/// Per-frame information passed to the app closure.
+/// Per-frame information passed to [`App::update`].
 #[derive(Debug)]
 pub struct Frame {
     frame_nr: u64,
@@ -161,15 +205,23 @@ pub struct PaintResult {
 }
 
 /// Run a complete native egui application on Tizen.
-pub fn run_native<F>(options: NativeOptions, mut app: F) -> Result<()>
-where
-    F: FnMut(&egui::Context, &mut Frame),
-{
+pub fn run_native(
+    app_name: &str,
+    mut options: NativeOptions,
+    app_creator: AppCreator<'_>,
+) -> Result<()> {
+    if options.title.is_empty() {
+        options.title = app_name.to_owned();
+    }
+    if options.app_id.is_empty() {
+        options.app_id = app_name.to_owned();
+    }
+
     let egui_options = TizenEguiOptions::from(&options);
     let mut display = Display::connect()?;
     let mut window = WindowBuilder::new()
-        .title(options.title)
-        .app_id(options.app_id)
+        .title(options.title.clone())
+        .app_id(options.app_id.clone())
         .size(options.size.0, options.size.1)
         .build(&display)?;
 
@@ -179,6 +231,15 @@ where
     // frame. `egui` is created after `window` and destroyed before
     // `window` goes out of scope.
     let mut egui = unsafe { TizenEguiGlow::new(&display, &window, egui_options)? };
+    let mut app = {
+        let cc = CreationContext {
+            egui_ctx: egui.context().clone(),
+            gl: Some(Arc::clone(egui.gl_context())),
+            size: window.size(),
+            pixels_per_point: options.pixels_per_point,
+        };
+        app_creator(&cc).map_err(|e| Error::AppCreation(e.to_string()))?
+    };
 
     let start_time = Instant::now();
     let mut frame_nr = 0_u64;
@@ -195,13 +256,18 @@ where
                     window.request_redraw();
                 }
                 Event::RedrawRequested => {
+                    let visuals = egui.context().style().visuals.clone();
+                    egui.set_clear_color(app.clear_color(&visuals));
+
                     let mut frame = Frame {
                         frame_nr,
                         start_time,
                         size: window.size(),
                         repaint_requested: false,
                     };
-                    let paint_result = egui.run_and_paint(&window, |ctx| app(ctx, &mut frame))?;
+                    let paint_result = egui.run_and_paint(&window, |ctx| {
+                        app.update(ctx, &mut frame);
+                    })?;
                     frame_nr += 1;
 
                     if options.continuous_repaint
@@ -224,6 +290,7 @@ where
         display.dispatch_pending(&mut window)?;
     }
 
+    app.on_exit(Some(egui.gl_context().as_ref()));
     egui.destroy();
     Ok(())
 }
@@ -329,6 +396,16 @@ impl TizenEguiGlow {
     /// Access the egui context.
     pub fn context(&self) -> &egui::Context {
         &self.egui_ctx
+    }
+
+    /// Access the glow context used by the renderer.
+    pub fn gl_context(&self) -> &Arc<glow::Context> {
+        &self.gl
+    }
+
+    /// Set the background clear colour used before egui paints.
+    pub fn set_clear_color(&mut self, clear_color: [f32; 4]) {
+        self.clear_color = clear_color;
     }
 
     /// Convert a Tizen window event into egui input.

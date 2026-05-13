@@ -8,16 +8,33 @@ This crate is the UI-framework-specific layer. `tizen-window` and
 egui input conversion, EGL context setup, glow context, painter,
 resize handling, repaint scheduling, and buffer swaps.
 
-For normal applications, use `run_native`:
+For normal applications, implement `App` and pass it to `run_native`.
+The app model is inspired by `eframe`, but this crate does not depend
+on or implement upstream `eframe`.
 
 ```rust,no_run
-use tizen_egui::{egui, NativeOptions};
+use tizen_egui::{egui, App, Frame, NativeOptions};
 
-tizen_egui::run_native(NativeOptions::default(), |ctx, _frame| {
-    egui::CentralPanel::default().show(ctx, |ui| {
-        ui.heading("hello, Tizen!");
-    });
-})?;
+struct MyApp;
+
+impl App for MyApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("hello, Tizen!");
+        });
+    }
+}
+
+tizen_egui::run_native(
+    "hello",
+    NativeOptions {
+        title: "hello".into(),
+        app_id: "rust.tizen.hello".into(),
+        size: (1920, 1080),
+        ..Default::default()
+    },
+    Box::new(|_cc| Ok(Box::new(MyApp))),
+)?;
 # Ok::<(), tizen_egui::Error>(())
 ```
 

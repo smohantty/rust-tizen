@@ -13,18 +13,12 @@
 //! XDG_RUNTIME_DIR=/run WAYLAND_DISPLAY=wayland-0 /tmp/hello-egui-gpu
 //! ```
 
-use tizen_egui::{egui, NativeOptions};
+use tizen_egui::{egui, App, Frame, NativeOptions};
 
-fn main() -> std::process::ExitCode {
-    let options = NativeOptions {
-        title: "hello-egui-gpu".to_owned(),
-        app_id: "rust.tizen.hello-egui-gpu".to_owned(),
-        size: (1920, 1080),
-        continuous_repaint: true,
-        ..Default::default()
-    };
+struct HelloApp;
 
-    match tizen_egui::run_native(options, |ctx, frame| {
+impl App for HelloApp {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut Frame) {
         let elapsed = frame.elapsed().as_secs_f32();
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -42,7 +36,23 @@ fn main() -> std::process::ExitCode {
             ui.add_space(8.0);
             ui.label(format!("sin(t * 1.5) = {:+.3}", phase.sin()));
         });
-    }) {
+    }
+}
+
+fn main() -> std::process::ExitCode {
+    let options = NativeOptions {
+        title: "hello-egui-gpu".to_owned(),
+        app_id: "rust.tizen.hello-egui-gpu".to_owned(),
+        size: (1920, 1080),
+        continuous_repaint: true,
+        ..Default::default()
+    };
+
+    match tizen_egui::run_native(
+        "hello-egui-gpu",
+        options,
+        Box::new(|_cc| Ok(Box::new(HelloApp))),
+    ) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("hello-egui-gpu: {e}");

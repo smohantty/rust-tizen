@@ -278,14 +278,16 @@ Tizen/EGL/egui integration code app authors should not have to repeat.
       raw bring-up into two public layers:
 
       ```rust
-      tizen_egui::TizenEguiGlow   // lower-level adapter
+      tizen_egui::App             // app-facing model
       tizen_egui::run_native      // app-facing runner
+      tizen_egui::TizenEguiGlow   // lower-level adapter
       ```
 
       The adapter owns EGL setup, the glow context, `egui_glow::Painter`,
       Tizen event to egui input conversion, resize handling, repaint
       scheduling, GL cleanup, and `swap_buffers`. `hello-egui-gpu`
-      now depends only on `tizen-egui` and contains normal egui UI code.
+      now depends only on `tizen-egui` and contains an `App`
+      implementation with normal egui UI code.
 
 - [x] **3.3 Verify on .234.** Cross-build for armv7l, push via
       `rsdb agent transfer.push`, run on the TV. **Steady 60 FPS,
