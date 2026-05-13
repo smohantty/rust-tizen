@@ -20,7 +20,7 @@
 
 use std::env;
 
-use tizen::window::{Display, WindowBuilder};
+use tizen::window::{Display, Event, WindowBuilder};
 
 fn main() -> std::process::ExitCode {
     let argv: Vec<String> = env::args().skip(1).collect();
@@ -59,11 +59,24 @@ fn main() -> std::process::ExitCode {
     );
     window.fill_solid(colour);
 
-    // Spin until the compositor sends us close.
     while !window.should_close() {
         if let Err(e) = display.dispatch_pending(&mut window) {
             eprintln!("hello-window: dispatch: {e}");
             return std::process::ExitCode::FAILURE;
+        }
+        let mut needs_paint = false;
+        for ev in window.drain_events() {
+            match ev {
+                Event::Resized { width, height } => {
+                    println!("hello-window: resized to {width}x{height}");
+                    needs_paint = true;
+                }
+                Event::RedrawRequested => needs_paint = true,
+                _ => {}
+            }
+        }
+        if needs_paint {
+            window.fill_solid(colour);
         }
     }
 

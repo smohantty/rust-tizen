@@ -401,7 +401,14 @@ impl Dispatch<ZxdgSurfaceV6, ()> for WindowState {
             // configure event (already stashed) or our default.
             proxy.ack_configure(serial);
             state.pending_configure = None;
+            let was_configured = state.configured;
             state.configured = true;
+            // First-ever configure: tell the user it's time to paint.
+            // (Subsequent configures get their RedrawRequested via the
+            // Resized path in zxdg_toplevel_v6 below.)
+            if !was_configured {
+                state.pending_events.push(crate::Event::RedrawRequested);
+            }
         }
     }
 }
@@ -426,6 +433,10 @@ impl Dispatch<ZxdgToplevelV6, ()> for WindowState {
                         width: w,
                         height: h,
                     });
+                    // Pair Resized with RedrawRequested so the caller's
+                    // standard "draw on RedrawRequested" handler also
+                    // handles resizes.
+                    state.pending_events.push(crate::Event::RedrawRequested);
                 }
             }
             Event::Close => {

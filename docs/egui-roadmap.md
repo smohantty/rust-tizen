@@ -86,7 +86,7 @@ What's missing to render egui:
 │ Phase 1 — `tizen-window` foundation (no new crates)          │
 │   1.1 ☑ raw-window-handle impls                              │
 │   1.2 ☑ wl_surface.frame callback API                        │
-│   1.3 ☐ Repaint on configure (compositor resize)             │
+│   1.3 ☑ Repaint on configure (compositor resize)             │
 │   1.4 ☐ Generic Event enum + Display::run helper             │
 │   1.5 ☐ wl_pointer wiring (enter/leave/motion/button/wheel)  │
 │   1.6 ☐ wl_keyboard wiring (raw keycodes; xkb deferred)      │
@@ -130,10 +130,12 @@ choice. No new crates; pure additions to `tizen-window`.
       existing `zxdg_toplevel_v6` dispatcher; the rest get filled
       in by Phases 1.5/1.6.
 
-- [ ] **1.3 Repaint on configure.** When `zxdg_toplevel.configure`
-      delivers a non-zero (w, h), update internal size and fire the
-      redraw callback so the buffer matches. Today we stay at 640×480
-      even when the compositor places us at 1920×1080.
+- [x] **1.3 Repaint on configure.** `Dispatch<ZxdgSurfaceV6>` pushes
+      `Event::RedrawRequested` on the first configure; `Dispatch<ZxdgToplevelV6>`
+      pairs `Event::Resized { w, h }` with `RedrawRequested` whenever the
+      compositor delivers a new non-zero size. `examples/hello-window`
+      drains events and re-fills on `Resized`, so the buffer now matches
+      the compositor's chosen size instead of staying pinned at 640×480.
 
 - [ ] **1.4 Event loop helper + winit-shaped Event enum.** Bare-bones
       `Display::run(window, callback)` that blocks dispatching events.
