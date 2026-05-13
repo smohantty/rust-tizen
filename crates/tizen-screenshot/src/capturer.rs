@@ -145,6 +145,21 @@ impl ScreenCapturer {
             ));
         }
 
+        // Match efl_util's init flow: after tbm_client init, do another
+        // roundtrip on our queue to drain the screenshooter's pre-shoot
+        // events (`screenshooter_notify`, `format`, `wl_output.mode/done`).
+        // Without this the compositor sometimes never sends `done` for
+        // the first shoot — it appears to gate the response on the
+        // client having seen the notify+format events.
+        queue
+            .roundtrip(&mut state)
+            .map_err(|e| Error::Transport(e.to_string()))?;
+
+        if state.shooter_noti == Some(0) {
+            unsafe { wayland_tbm::deinit(tbm_client) };
+            return Err(Error::ProtocolUnavailable);
+        }
+
         Ok(Self {
             inner: Inner {
                 conn,
@@ -352,6 +367,9 @@ unsafe fn copy_out(surface: tbm::tbm_surface_h) -> Result<ScreenFrame> {
 struct State {
     shooter: Option<TizenScreenshooter>,
     shooter_version: Option<u32>,
+    /// Latest `screenshooter_notify` value. efl_util uses `0` as
+    /// "permission denied", any non-zero value as OK.
+    shooter_noti: Option<u32>,
     output: Option<WlOutput>,
     output_size: Option<(u32, u32)>,
     shot_done: bool,
@@ -403,7 +421,10 @@ impl Dispatch<TizenScreenshooter, ()> for State {
         match event {
             ShooterEvent::Done => state.shot_done = true,
             ShooterEvent::AreaShootDone => state.area_shot_done = true,
-            ShooterEvent::Format { .. } | ShooterEvent::ScreenshooterNotify { .. } => {}
+            ShooterEvent::ScreenshooterNotify { noti } => {
+                state.shooter_noti = Some(noti);
+            }
+            ShooterEvent::Format { .. } => {}
             _ => {}
         }
     }
