@@ -103,6 +103,12 @@ as a starting point:
 - [`examples/tizen-service-app-tokio/`](./examples/tizen-service-app-tokio/)
   — `app-tokio`, async `AsyncServiceLifecycle` driven by
   `run_service_async_with` (headless + tokio runtime).
+- [`examples/hello-egui-gpu/`](./examples/hello-egui-gpu/) — `window` +
+  `egl` features, egui rendered through `egui_glow` on a native Tizen
+  Wayland/EGL surface.
+- [`examples/a2ui-egui-renderer/`](./examples/a2ui-egui-renderer/) —
+  first-stage A2UI Basic Catalog JSON/JSONL renderer over the egui GPU
+  path, including a sample contact-form scene.
 
 ## Project layout
 
@@ -114,7 +120,8 @@ rust-tizen/
 │   ├── tizen-dlog-sys/         # raw FFI for libdlog
 │   └── tizen-dlog/             # safe wrapper + log::Log impl
 ├── examples/
-│   └── hello-dlog/             # standalone consumer template (git dep)
+│   ├── hello-dlog/             # standalone consumer template (git dep)
+│   └── a2ui-egui-renderer/     # A2UI JSONL -> egui renderer example
 ├── docs/
 │   ├── adding-a-binding.md     # how to contribute a new tizen-foo crate
 │   └── tizen-target-setup.md   # cross-compile setup

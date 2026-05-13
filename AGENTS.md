@@ -28,6 +28,8 @@ are listed in [`README.md`](README.md).
 | `examples/tizen-ui-app-tokio/`| Standalone consumer template — async UI via `run_async_with` |
 | `examples/tizen-service-app/` | Standalone consumer template — sync `ServiceLifecycle` (headless) |
 | `examples/tizen-service-app-tokio/` | Standalone consumer template — async `ServiceLifecycle` (headless + tokio) |
+| `examples/hello-egui-gpu/` | Standalone egui GPU renderer smoke test over `tizen-window` + `tizen-egl` |
+| `examples/a2ui-egui-renderer/` | Standalone A2UI Basic Catalog JSON renderer over egui GPU |
 | `docs/`                    | Cross-compile setup, contribution guide                |
 | `scripts/`                 | Validation entry points (`precommit.sh`)               |
 
