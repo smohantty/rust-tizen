@@ -2,7 +2,7 @@ use crate::error::{Error, ProtocolError, Result};
 
 use tizen_input_sys::protocol::tizen_input_device::TizenInputDevice;
 use tizen_input_sys::protocol::tizen_input_device_manager::{
-    Clas, Event as MgrEvent, TizenInputDeviceManager,
+    self as tidm, Clas, Event as MgrEvent, TizenInputDeviceManager,
 };
 use wayland_client::protocol::{wl_registry, wl_seat::WlSeat};
 use wayland_client::{Connection, Dispatch, EventQueue, Proxy, QueueHandle};
@@ -287,6 +287,13 @@ impl Dispatch<TizenInputDeviceManager, ()> for State {
             _ => {}
         }
     }
+
+    // The `device_add` event creates a `tizen_input_device` proxy via
+    // `new_id`. wayland-client needs us to declare the child user-data
+    // type per parent-event opcode, otherwise it panics on first delivery.
+    wayland_client::event_created_child!(State, TizenInputDeviceManager, [
+        tidm::EVT_DEVICE_ADD_OPCODE => (TizenInputDevice, ()),
+    ]);
 }
 
 impl Dispatch<TizenInputDevice, ()> for State {
