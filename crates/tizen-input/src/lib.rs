@@ -38,4 +38,7 @@ mod error;
 mod generator;
 
 pub use error::{Error, Result};
-pub use generator::{DeviceType, InputGenerator, InputGeneratorBuilder, KeyState};
+pub use generator::{
+    DeviceType, InputGenerator, InputGeneratorBuilder, KeyState, PointerButton, PointerPhase,
+    TouchPhase,
+};

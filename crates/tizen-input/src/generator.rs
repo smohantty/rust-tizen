@@ -1,8 +1,10 @@
+use std::{thread, time::Duration};
+
 use crate::error::{Error, ProtocolError, Result};
 
 use tizen_input_sys::protocol::tizen_input_device::TizenInputDevice;
 use tizen_input_sys::protocol::tizen_input_device_manager::{
-    self as tidm, Clas, Event as MgrEvent, TizenInputDeviceManager,
+    self as tidm, Clas, Event as MgrEvent, PointerEventType, TizenInputDeviceManager,
 };
 use wayland_client::protocol::{wl_registry, wl_seat::WlSeat};
 use wayland_client::{Connection, Dispatch, EventQueue, Proxy, QueueHandle};
@@ -50,6 +52,82 @@ impl KeyState {
         match self {
             Self::Pressed => 1,
             Self::Released => 0,
+        }
+    }
+}
+
+/// Phase of a touch event. Maps to the protocol's `pointer_event_type` enum.
+///
+/// A simulated tap is `Begin` → (small delay) → `End` at the same coordinate;
+/// a drag is `Begin` → one or more `Update`s → `End`.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum TouchPhase {
+    /// Finger lands at (x, y).
+    Begin,
+    /// Finger has moved to (x, y) while still pressed.
+    Update,
+    /// Finger lifts at (x, y).
+    End,
+}
+
+impl TouchPhase {
+    fn to_proto(self) -> PointerEventType {
+        match self {
+            Self::Begin => PointerEventType::Begin,
+            Self::Update => PointerEventType::Update,
+            Self::End => PointerEventType::End,
+        }
+    }
+}
+
+/// Phase of a pointer event. Same wire enum as touch (the protocol reuses
+/// `pointer_event_type` for both), but the semantics differ:
+///
+/// * `ButtonDown` — a button is pressed at (x, y).
+/// * `Move` — the pointer has moved to (x, y) (button state unchanged).
+/// * `ButtonUp` — a button is released at (x, y).
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum PointerPhase {
+    /// Button press at (x, y).
+    ButtonDown,
+    /// Cursor move to (x, y), no button state change.
+    Move,
+    /// Button release at (x, y).
+    ButtonUp,
+}
+
+impl PointerPhase {
+    fn to_proto(self) -> PointerEventType {
+        match self {
+            Self::ButtonDown => PointerEventType::Begin,
+            Self::Move => PointerEventType::Update,
+            Self::ButtonUp => PointerEventType::End,
+        }
+    }
+}
+
+/// Mouse button index. The Wayland convention uses linux/input-event-codes.h
+/// numbers — `Left` is the common left/primary click.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum PointerButton {
+    /// Primary button (BTN_LEFT = 0x110 = 272). Used by [`InputGenerator::click`].
+    Left,
+    /// Secondary button (BTN_RIGHT = 0x111 = 273).
+    Right,
+    /// Middle button (BTN_MIDDLE = 0x112 = 274).
+    Middle,
+    /// Raw button code passthrough for buttons not enumerated above.
+    Other(u32),
+}
+
+impl PointerButton {
+    fn as_u32(self) -> u32 {
+        match self {
+            Self::Left => 0x110,
+            Self::Right => 0x111,
+            Self::Middle => 0x112,
+            Self::Other(code) => code,
         }
     }
 }
@@ -120,12 +198,99 @@ impl InputGenerator {
     /// `"XF86Back"`, `"KEY_VOLUMEUP"`, `"Return"`) — the compositor maps
     /// it to a keycode using its own table.
     pub fn key(&mut self, name: &str, state: KeyState) -> Result<()> {
+        if !self.devices.contains(DeviceType::KEYBOARD) {
+            return Err(Error::Rejected(ProtocolError::InvalidClass));
+        }
         let Some(inner) = self.inner.as_mut() else {
             eprintln!("tizen-input(host): key {name} {state:?}");
             return Ok(());
         };
         inner.mgr.generate_key(name.to_owned(), state.as_u32());
         inner.dispatch_until_ack()
+    }
+
+    /// Inject a touch event for finger `idx` at screen coordinates `(x, y)`.
+    ///
+    /// The generator must have been opened with [`DeviceType::TOUCHSCREEN`].
+    /// `idx` is the finger slot (0-based) and must be below the compositor's
+    /// `max_touch_count` (typically 10–20 on Tizen TV / mobile).
+    ///
+    /// Use [`InputGenerator::tap`] for the common begin → end shortcut.
+    pub fn touch(&mut self, idx: u32, phase: TouchPhase, x: u32, y: u32) -> Result<()> {
+        if !self.devices.contains(DeviceType::TOUCHSCREEN) {
+            return Err(Error::Rejected(ProtocolError::InvalidClass));
+        }
+        let Some(inner) = self.inner.as_mut() else {
+            eprintln!("tizen-input(host): touch idx={idx} {phase:?} at ({x},{y})");
+            return Ok(());
+        };
+        if let Some(max) = inner.state.max_touch_count {
+            if idx >= max {
+                return Err(Error::Rejected(ProtocolError::InvalidParameter));
+            }
+        }
+        inner.mgr.generate_touch(phase.to_proto(), x, y, idx);
+        inner.dispatch_until_ack()
+    }
+
+    /// Convenience wrapper for a tap: `Begin → 50ms hold → End` at the same
+    /// coordinate on finger slot `idx`. Equivalent to two [`Self::touch`]
+    /// calls.
+    pub fn tap(&mut self, idx: u32, x: u32, y: u32) -> Result<()> {
+        self.touch(idx, TouchPhase::Begin, x, y)?;
+        thread::sleep(Duration::from_millis(50));
+        self.touch(idx, TouchPhase::End, x, y)
+    }
+
+    /// Inject a pointer event at screen coordinates `(x, y)`.
+    ///
+    /// The generator must have been opened with [`DeviceType::POINTER`].
+    /// `button` is the linux/input-event-codes button code (e.g.
+    /// [`PointerButton::Left`] = `BTN_LEFT`); the compositor uses it for
+    /// `ButtonDown`/`ButtonUp` phases and typically ignores it for `Move`.
+    pub fn pointer(
+        &mut self,
+        button: PointerButton,
+        phase: PointerPhase,
+        x: u32,
+        y: u32,
+    ) -> Result<()> {
+        if !self.devices.contains(DeviceType::POINTER) {
+            return Err(Error::Rejected(ProtocolError::InvalidClass));
+        }
+        let Some(inner) = self.inner.as_mut() else {
+            eprintln!("tizen-input(host): pointer {button:?} {phase:?} at ({x},{y})");
+            return Ok(());
+        };
+        inner
+            .mgr
+            .generate_pointer(phase.to_proto(), x, y, button.as_u32());
+        inner.dispatch_until_ack()
+    }
+
+    /// Convenience wrapper for a click: `Move` to (x, y) → `ButtonDown` →
+    /// 50ms hold → `ButtonUp`. Uses the given mouse button.
+    ///
+    /// On Tizen TV this is the visible analogue of `tap` — it moves the
+    /// on-screen pointer to `(x, y)` and presses the primary button.
+    pub fn click(&mut self, button: PointerButton, x: u32, y: u32) -> Result<()> {
+        self.pointer(button, PointerPhase::Move, x, y)?;
+        self.pointer(button, PointerPhase::ButtonDown, x, y)?;
+        thread::sleep(Duration::from_millis(50));
+        self.pointer(button, PointerPhase::ButtonUp, x, y)
+    }
+
+    /// Move the pointer to `(x, y)` without changing any button state.
+    /// Equivalent to `self.pointer(PointerButton::Left, PointerPhase::Move, x, y)`.
+    pub fn move_pointer(&mut self, x: u32, y: u32) -> Result<()> {
+        self.pointer(PointerButton::Left, PointerPhase::Move, x, y)
+    }
+
+    /// Most recent `max_touch_count` reported by the compositor for this
+    /// connection, or `None` if no event has arrived yet (rare; the server
+    /// emits it during `init_generator` ack).
+    pub fn max_touch_count(&self) -> Option<u32> {
+        self.inner.as_ref().and_then(|i| i.state.max_touch_count)
     }
 
     fn open_inner(devices: DeviceType, name: Option<String>) -> Result<Self> {
@@ -155,11 +320,7 @@ impl InputGenerator {
         let mut queue: EventQueue<State> = conn.new_event_queue();
         let qh = queue.handle();
 
-        let mut state = State {
-            mgr: None,
-            error: None,
-            _seat: None,
-        };
+        let mut state = State::default();
 
         // First roundtrip: enumerate globals.
         let _registry = display.get_registry(&qh, ());
@@ -234,6 +395,9 @@ struct State {
     mgr: Option<TizenInputDeviceManager>,
     /// Latest error code from the manager — `Some(0)` means success ack.
     error: Option<u32>,
+    /// Compositor-advertised maximum finger slot count for touch generation,
+    /// captured from the manager's `max_touch_count` event.
+    max_touch_count: Option<u32>,
     _seat: Option<WlSeat>,
 }
 
@@ -279,10 +443,12 @@ impl Dispatch<TizenInputDeviceManager, ()> for State {
     ) {
         match event {
             MgrEvent::Error { errorcode } => state.error = Some(errorcode.into()),
+            MgrEvent::MaxTouchCount { max_count, .. } => {
+                state.max_touch_count = Some(max_count.max(0) as u32);
+            }
             MgrEvent::DeviceAdd { .. }
             | MgrEvent::DeviceRemove { .. }
             | MgrEvent::BlockExpired
-            | MgrEvent::MaxTouchCount { .. }
             | MgrEvent::EventBoundary { .. } => {}
             _ => {}
         }
