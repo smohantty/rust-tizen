@@ -1,0 +1,25 @@
+[package]
+name = "tizen-input-sys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Raw client bindings for the Tizen `tizen_input_device_manager` Wayland protocol"
+categories = ["external-ffi-bindings"]
+keywords = ["tizen", "wayland", "input", "ffi", "bindings"]
+readme = "README.md"
+
+[lib]
+
+[dependencies]
+wayland-client  = { workspace = true }
+wayland-backend = { workspace = true }
+wayland-scanner = { workspace = true }
+# Used by the bitflags-style enums (e.g. `clas`) emitted by wayland-scanner.
+bitflags        = { workspace = true }
+
+[lints]
+workspace = true

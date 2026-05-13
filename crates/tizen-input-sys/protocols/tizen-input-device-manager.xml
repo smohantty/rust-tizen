@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="tizen_input_extension">
+  <copyright>
+    Copyright © 2015-2017 Samsung Electronics co., Ltd. All Rights Reserved.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    This file is a trimmed extract of upstream `tizen-extension.xml`
+    from the Tizen `wayland-extension` repository, containing only the
+    `tizen_input_device_manager` and `tizen_input_device` interfaces.
+    See UPSTREAM.txt for the source commit.
+  </copyright>
+
+  <interface name="tizen_input_device_manager" version="7">
+    <description summary="global input device manager object">
+      Tizen input device manager is a global interface. This object has device add/remove events
+      to provide tizen input device object to a client. This allows for a client to get the con
+
+      Be sure to bind this interface after binding wl_seat interface.
+      Tizen input device manager interface will only provide device add/remove event for devices
+      which belongs to the wl_seat object(s) bound by the client. Therefore, the compositor needs to
+      create/send the device add/remove event only for the current client's seat(s).
+    </description>
+
+    <event name="device_add">
+      <description summary="device addition event">
+        The device add/remove notification is going to be sent when a physical/logical device is
+        added/removed to/from the given seat.
+      </description>
+      <arg name="serial" type="uint"/>
+      <arg name="identifier" type="string"/>
+      <arg name="device" type="new_id" interface="tizen_input_device"/>
+      <arg name="seat" type="object" interface="wl_seat"/>
+    </event>
+
+    <event name="device_remove">
+      <description summary="device removal event"/>
+      <arg name="serial" type="uint"/>
+      <arg name="identifier" type="string"/>
+      <arg name="device" type="object" interface="tizen_input_device"/>
+      <arg name="seat" type="object" interface="wl_seat"/>
+    </event>
+
+    <!-- bitfield: usable as `mouse | keyboard | touchscreen` on the wire.
+         Marked as bitfield here so wayland-scanner generates a flags type
+         (the upstream XML omits this attribute but C consumers OR the
+         values together). -->
+    <enum name="clas" bitfield="true">
+      <description summary="device class"/>
+      <entry name="none" value="0" summary="none of class"/>
+      <entry name="mouse" value="1" summary="mouse class"/>
+      <entry name="keyboard" value="2" summary="keyboard class"/>
+      <entry name="touchscreen" value="4" summary="touchscreen class"/>
+    </enum>
+
+    <enum name="error">
+      <entry name="none" value="0" summary="no error"/>
+      <entry name="no_permission" value="1" summary="no permission"/>
+      <entry name="invalid_class" value="2" summary="invalid class"/>
+      <entry name="blocked_already" value="3" summary="blocked already by the other client"/>
+      <entry name="no_system_resources" value="4" summary="no system resources such as memory lack"/>
+      <entry name="invalid_parameter" value="5" summary="argument is invalid"/>
+      <entry name="invalid_surface" value="6" summary="the given surface is not visible or pointer is not on the given surface"/>
+      <entry name="no_pointer_available" value="7" summary="there is no pointer available to warp"/>
+      <entry name="not_allowed" value="8" summary="this request is not allowed in this system"/>
+    </enum>
+
+    <event name="error">
+      <description summary="error event"/>
+      <arg name="errorcode" type="uint" enum="error"/>
+    </event>
+
+    <event name="block_expired">
+      <description summary="block expiration event"/>
+    </event>
+
+    <request name="block_events">
+      <description summary="request to block sending event(s)"/>
+      <arg name="serial" type="uint"/>
+      <arg name="clas" type="uint" enum="clas"/>
+      <arg name="duration" type="uint" summary="time duration with millisecond granularity"/>
+    </request>
+
+    <request name="unblock_events">
+      <description summary="request to unblock sending event(s)"/>
+      <arg name="serial" type="uint"/>
+    </request>
+
+    <request name="init_generator">
+      <description summary="initialize input generator system"/>
+      <arg name="clas" type="uint" enum="clas"/>
+    </request>
+
+    <request name="deinit_generator">
+      <description summary="deinitialize input generator system"/>
+      <arg name="clas" type="uint" enum="clas"/>
+    </request>
+
+    <request name="generate_key">
+      <description summary="generate a key event using specific or default device"/>
+      <arg name="keyname" type="string"/>
+      <arg name="pressed" type="uint"/>
+    </request>
+
+    <enum name="pointer_event_type">
+      <entry name="begin" value="0"/>
+      <entry name="update" value="1"/>
+      <entry name="end" value="2"/>
+    </enum>
+
+    <request name="generate_pointer">
+      <description summary="generate a pointer event using specific or default device"/>
+      <arg name="type" type="uint" enum="pointer_event_type"/>
+      <arg name="x" type="uint"/>
+      <arg name="y" type="uint"/>
+      <arg name="button" type="uint"/>
+    </request>
+
+    <request name="generate_touch">
+      <description summary="generate a touch event using specific or default device"/>
+      <arg name="type" type="uint" enum="pointer_event_type"/>
+      <arg name="x" type="uint"/>
+      <arg name="y" type="uint"/>
+      <arg name="finger" type="uint"/>
+    </request>
+
+    <request name="pointer_warp">
+      <description summary="warp pointer to the relative position to the given surface"/>
+      <arg name="surface" type="object" interface="wl_surface" summary="the surface object"/>
+      <arg name="x" type="fixed"/>
+      <arg name="y" type="fixed"/>
+    </request>
+
+    <!-- version 2 additions -->
+    <request name="init_generator_with_name" since="2">
+      <description summary="initialize input generator system with name"/>
+      <arg name="clas" type="uint" enum="clas"/>
+      <arg name="name" type="string"/>
+    </request>
+
+    <request name="destroy" type="destructor" since="2">
+      <description summary="destroy the tizen_input_device_manager"/>
+    </request>
+
+    <!-- version 3 additions -->
+    <enum name="axis_type" since="3">
+      <entry name="none" value="0" summary="no axis type"/>
+      <entry name="wheel" value="1" summary="pointer vertical wheel axis"/>
+      <entry name="hwheel" value="2" summary="pointer horizental wheel axis"/>
+      <entry name="radius_x" value="3" summary="touch radius of x axis of an event area"/>
+      <entry name="radius_y" value="4" summary="touch radius of y axis of an event area"/>
+      <entry name="pressure" value="5" summary="touch pressure in an event area"/>
+      <entry name="angle" value="6" summary="touch angle in an event area"/>
+      <entry name="palm" value="7" summary="touch palm in an event area"/>
+    </enum>
+
+    <request name="generate_axis" since="3">
+      <description summary="generate a pointer/touch axes event using specific or default device"/>
+      <arg name="type" type="uint" enum="axis_type"/>
+      <arg name="value" type="fixed" summary="axis value"/>
+    </request>
+
+    <!-- version 4 additions -->
+    <event name="max_touch_count" since="4">
+      <description summary="notify max slot of touch device is updated"/>
+      <arg name="serial" type="uint"/>
+      <arg name="max_count" type="int"/>
+      <arg name="seat" type="object" interface="wl_seat"/>
+    </event>
+
+    <request name="set_touch_count" since="4">
+      <description summary="set a max slot of touch"/>
+      <arg name="max_count" type="int"/>
+    </request>
+
+    <!-- version 5 additions -->
+    <request name="init_generator_with_sync" since="5">
+      <description summary="initialize input generator system with name synchronously"/>
+      <arg name="clas" type="uint" enum="clas"/>
+      <arg name="name" type="string"/>
+    </request>
+
+    <!-- version 6 additions -->
+    <enum name="subclas">
+      <description summary="device subclass"/>
+      <entry name="none" value="1" summary="none of subclass"/>
+      <entry name="remocon" value="2" summary="remocon subclass"/>
+      <entry name="virtual_keyboard" value="4" summary="virtual_keyboard subclass"/>
+    </enum>
+
+    <request name="keyboard_grab" since="6">
+      <description summary="grab keyboard events if device is a certial subclass"/>
+      <arg name="surface" type="object" interface="wl_surface" summary="the surface object"/>
+      <arg name="subclas" type="uint" enum="subclas"/>
+    </request>
+
+    <request name="keyboard_ungrab" since="6">
+      <description summary="ungrab keyboard events"/>
+      <arg name="surface" type="object" interface="wl_surface" summary="the surface object"/>
+    </request>
+
+    <!-- version 7 additions -->
+    <enum name="boundary">
+      <entry name="top" value="1"/>
+      <entry name="right" value="2"/>
+      <entry name="bottom" value="3"/>
+      <entry name="left" value="4"/>
+    </enum>
+
+    <request name="grab_relative_motion" since="7">
+      <description summary="grab relative motion"/>
+      <arg name="surface" type="object" interface="wl_surface" summary="the surface object"/>
+      <arg name="boundary" type="uint" enum="boundary"/>
+    </request>
+
+    <request name="ungrab_relative_motion" since="7">
+      <description summary="ungrab relative motion"/>
+      <arg name="surface" type="object" interface="wl_surface" summary="the surface object"/>
+    </request>
+
+    <event name="event_boundary" since="7">
+      <description summary="event indicates which boundary is associated with a relative_motion event"/>
+      <arg name="serial" type="uint"/>
+      <arg name="boundary" type="uint" enum="boundary"/>
+    </event>
+  </interface>
+
+  <interface name="tizen_input_device" version="1">
+    <description summary="tizen input device object">
+      The tizen_input_device interface represents one or more input devices associated with a
+      physical/logical input device.
+    </description>
+
+    <enum name="clas">
+      <description summary="device class"/>
+      <entry name="none" value="0" summary="none of class"/>
+      <entry name="keyboard" value="2" summary="keyboard class"/>
+      <entry name="mouse" value="3" summary="mouse class"/>
+      <entry name="touchscreen" value="4" summary="touchscreen class"/>
+    </enum>
+
+    <enum name="subclas">
+      <description summary="device subclass"/>
+      <entry name="none" value="0" summary="none of subclass"/>
+    </enum>
+
+    <enum name="axis_type">
+      <description summary="axis type enums which can be supported by a device"/>
+      <entry name="none" value="0"/>
+      <entry name="radius_x" value="1"/>
+      <entry name="radius_y" value="2"/>
+      <entry name="pressure" value="3"/>
+      <entry name="angle" value="4"/>
+      <entry name="detent" value="5"/>
+    </enum>
+
+    <event name="device_info">
+      <description summary="event contains device information"/>
+      <arg name="name" type="string"/>
+      <arg name="clas" type="uint" enum="clas"/>
+      <arg name="subclas" type="uint" enum="subclas"/>
+      <arg name="axes" type="array" summary="array of axis enum"/>
+    </event>
+
+    <event name="event_device">
+      <description summary="event indicates the source device associated with a wl_pointer/keyboard/touch event"/>
+      <arg name="serial" type="uint"/>
+      <arg name="name" type="string"/>
+      <arg name="time" type="uint" summary="timestamp with millisecond granularity"/>
+    </event>
+
+    <request name="select_axes">
+      <description summary="request for selecting some of axes among the axes supported by a tizen_input_device object"/>
+      <arg name="axes" type="array" summary="array of axis num"/>
+    </request>
+
+    <event name="axis">
+      <description summary="axis change event"/>
+      <arg name="axis_type" type="uint" enum="axis_type"/>
+      <arg name="value" type="fixed" summary="axis value"/>
+    </event>
+
+    <request name="release" type="destructor">
+      <description summary="release the tizen_input_device object"/>
+    </request>
+  </interface>
+</protocol>
