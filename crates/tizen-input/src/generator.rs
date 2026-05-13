@@ -106,27 +106,33 @@ impl PointerPhase {
     }
 }
 
-/// Mouse button index. The Wayland convention uses linux/input-event-codes.h
-/// numbers — `Left` is the common left/primary click.
+/// Mouse button index sent in the `button` field of `generate_pointer`.
+///
+/// Tizen's input-device-manager uses **X11-style button indices** (1 = left,
+/// 2 = middle, 3 = right), *not* Linux input-event-codes (BTN_LEFT = 0x110)
+/// nor a bitmask. Confirmed by the upstream `efl_util` test suite
+/// (`tc-efl-util-internal.cpp:269+` passes `1` for left-button events).
+/// Passing `0x110` is rejected with `invalid_parameter`.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum PointerButton {
-    /// Primary button (BTN_LEFT = 0x110 = 272). Used by [`InputGenerator::click`].
+    /// Primary/left button (X11 button 1). Used by [`InputGenerator::click`].
     Left,
-    /// Secondary button (BTN_RIGHT = 0x111 = 273).
-    Right,
-    /// Middle button (BTN_MIDDLE = 0x112 = 274).
+    /// Middle button (X11 button 2).
     Middle,
-    /// Raw button code passthrough for buttons not enumerated above.
+    /// Secondary/right button (X11 button 3).
+    Right,
+    /// Raw button index passthrough — for non-standard buttons supported
+    /// by a specific Tizen profile. Values 4/5 are wheel up/down in X11.
     Other(u32),
 }
 
 impl PointerButton {
     fn as_u32(self) -> u32 {
         match self {
-            Self::Left => 0x110,
-            Self::Right => 0x111,
-            Self::Middle => 0x112,
+            Self::Left => 1,
+            Self::Middle => 2,
+            Self::Right => 3,
             Self::Other(code) => code,
         }
     }
