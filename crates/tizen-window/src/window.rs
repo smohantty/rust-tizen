@@ -1,6 +1,10 @@
 use std::ffi::c_void;
 use std::os::raw::c_int;
+use std::ptr::NonNull;
 
+use raw_window_handle::{
+    HandleError, HasWindowHandle, RawWindowHandle, WaylandWindowHandle, WindowHandle,
+};
 use tizen_tbm_sys::tbm;
 use tizen_tbm_sys::wayland_tbm;
 use tizen_window_sys::tizen_extension::tizen_policy::TizenPolicy;
@@ -237,6 +241,28 @@ impl Drop for Window {
     fn drop(&mut self) {
         // wayland-scanner generates destructor requests; dropping the
         // proxies sends them.
+    }
+}
+
+// ----- raw-window-handle interop -------------------------------------------
+//
+// `HasWindowHandle` lets any renderer (softbuffer, glow via khronos-egl,
+// wgpu's GLES backend, ash for Vulkan, …) discover our underlying
+// `wl_surface *` without us taking a dependency on those crates. This is
+// the standard ecosystem trait (see `raw-window-handle` 0.6).
+
+impl HasWindowHandle for Window {
+    fn window_handle(&self) -> std::result::Result<WindowHandle<'_>, HandleError> {
+        // The scanner-generated `WlSurface` exposes `.id().as_ptr()` which
+        // returns the underlying `*mut wl_proxy`. For a `wl_surface` the
+        // proxy *is* the surface from libwayland-client's perspective.
+        let ptr = self.surface.id().as_ptr() as *mut c_void;
+        let nn = NonNull::new(ptr).ok_or(HandleError::Unavailable)?;
+        let raw = WaylandWindowHandle::new(nn);
+        // SAFETY: the `wl_surface *` is valid for the lifetime of `self.surface`,
+        // which is owned by this `Window`; `WindowHandle::borrow_raw` ties the
+        // returned handle's lifetime to `&self`.
+        Ok(unsafe { WindowHandle::borrow_raw(RawWindowHandle::Wayland(raw)) })
     }
 }
 

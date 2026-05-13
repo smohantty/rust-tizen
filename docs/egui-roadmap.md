@@ -84,7 +84,7 @@ What's missing to render egui:
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ Phase 1 — `tizen-window` foundation (no new crates)          │
-│   1.1 ☐ raw-window-handle impls                              │
+│   1.1 ☑ raw-window-handle impls                              │
 │   1.2 ☐ wl_surface.frame callback API                        │
 │   1.3 ☐ Repaint on configure (compositor resize)             │
 │   1.4 ☐ Generic Event enum + Display::run helper             │
@@ -108,13 +108,14 @@ What's missing to render egui:
 Everything that any renderer needs from us, regardless of CPU/GPU
 choice. No new crates; pure additions to `tizen-window`.
 
-- [ ] **1.1 raw-window-handle impls.** Add `raw-window-handle = "0.6"`
-      dep; impl `HasRawDisplayHandle` for `Display` returning a
-      `WaylandDisplayHandle { display: *mut wl_display }`, and
-      `HasRawWindowHandle` for `Window` returning a
-      `WaylandWindowHandle { surface: *mut wl_surface }`. Both
-      pointers we already extract internally; this just exposes them
-      through the standard ecosystem trait.
+- [x] **1.1 raw-window-handle impls.** Added `raw-window-handle = "0.6"`
+      dep; `Display` impls `HasDisplayHandle` returning a
+      `WaylandDisplayHandle` wrapping the `Connection`'s
+      `backend().display_ptr()`; `Window` impls `HasWindowHandle`
+      returning a `WaylandWindowHandle` wrapping the
+      `wl_surface`'s `id().as_ptr()`. Both lifetimes are tied to
+      `&self` via `borrow_raw`. Verified by `cargo check + clippy +
+      tests` clean.
 
 - [ ] **1.2 Frame callback API.** `Window::request_redraw()` calls
       `wl_surface.frame(qh)` to register a callback. When the

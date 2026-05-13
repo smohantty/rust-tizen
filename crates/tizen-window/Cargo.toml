@@ -17,6 +17,10 @@ tizen-window-sys = { workspace = true }
 tizen-tbm-sys    = { workspace = true }
 wayland-client   = { workspace = true }
 wayland-backend  = { workspace = true, features = ["client_system", "dlopen"] }
+# Universal ecosystem interop trait: lets softbuffer / glow / wgpu /
+# ash / etc. discover the underlying `wl_display *` / `wl_surface *`
+# without us having to take a dep on any specific UI framework.
+raw-window-handle = "0.6"
 
 [lints]
 workspace = true

@@ -1,6 +1,10 @@
 use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::Arc;
 
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, RawDisplayHandle, WaylandDisplayHandle,
+};
 use tizen_tbm_sys::wayland_tbm;
 use tizen_window_sys::tizen_extension::tizen_policy::TizenPolicy;
 use tizen_window_sys::wtz_shell::wtz_shell::WtzShell;
@@ -117,6 +121,29 @@ impl Display {
 
     pub(crate) fn queue_handle(&self) -> QueueHandle<WindowState> {
         self.queue.handle()
+    }
+}
+
+// ----- raw-window-handle interop -------------------------------------------
+//
+// `HasDisplayHandle` lets any renderer (softbuffer, glow via khronos-egl,
+// wgpu, ash, …) discover our underlying `wl_display *` without us taking
+// a dependency on those crates. This is the standard ecosystem trait
+// (see `raw-window-handle` 0.6).
+
+impl HasDisplayHandle for Display {
+    fn display_handle(&self) -> std::result::Result<DisplayHandle<'_>, HandleError> {
+        // `Connection::backend()` returns a cheaply-cloned `Backend` (Arc inside);
+        // `Backend::display_ptr()` is exposed when the `client_system` feature is on
+        // (which our Cargo.toml enables).
+        let display_ptr = self.conn.backend().display_ptr() as *mut c_void;
+        let nn = NonNull::new(display_ptr).ok_or(HandleError::Unavailable)?;
+        let raw = WaylandDisplayHandle::new(nn);
+        // SAFETY: the `wl_display *` is valid for the lifetime of `Display`
+        // (we hold the `Connection`); `DisplayHandle::borrow_raw` ties the
+        // returned handle's lifetime to `&self`, so the pointer cannot
+        // outlive the `Display`.
+        Ok(unsafe { DisplayHandle::borrow_raw(RawDisplayHandle::Wayland(raw)) })
     }
 }
 
