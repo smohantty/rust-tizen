@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use std::sync::Arc;
 
 use tizen_tbm_sys::wayland_tbm;
-use tizen_window_sys::tizen_policy::tizen_policy::TizenPolicy;
+use tizen_window_sys::tizen_extension::tizen_policy::TizenPolicy;
 use tizen_window_sys::wtz_shell::wtz_shell::WtzShell;
 use tizen_window_sys::xdg_shell_v6::zxdg_shell_v6::ZxdgShellV6;
 use wayland_backend::client::{Backend, ObjectData, ObjectId};

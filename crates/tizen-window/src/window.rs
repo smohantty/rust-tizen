@@ -3,7 +3,7 @@ use std::os::raw::c_int;
 
 use tizen_tbm_sys::tbm;
 use tizen_tbm_sys::wayland_tbm;
-use tizen_window_sys::tizen_policy::tizen_policy::{TizenPolicy, WinType};
+use tizen_window_sys::tizen_extension::tizen_policy::TizenPolicy;
 use tizen_window_sys::wtz_shell::{wtz_shell::WtzShell, wtz_surface::WtzSurface};
 use tizen_window_sys::xdg_shell_v6::{
     zxdg_shell_v6::ZxdgShellV6, zxdg_surface_v6::ZxdgSurfaceV6, zxdg_toplevel_v6::ZxdgToplevelV6,
@@ -212,7 +212,10 @@ impl Window {
         // a future explicit `activate()` method.
         if let Some(tp) = &self.tz_policy {
             if !self.state.policy_shown {
-                tp.set_type(&self.surface, WinType::Toplevel);
+                // Upstream `set_type` takes a plain `uint`; the `win_type`
+                // values are documented inline (1 = toplevel).
+                const WIN_TYPE_TOPLEVEL: u32 = 1;
+                tp.set_type(&self.surface, WIN_TYPE_TOPLEVEL);
                 tp.show(&self.surface);
                 tp.raise(&self.surface);
                 self.state.policy_shown = true;

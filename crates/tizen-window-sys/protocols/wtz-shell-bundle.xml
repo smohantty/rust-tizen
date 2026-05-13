@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="wtz_screen">
+  <!-- ================================================================ -->
+  <!-- BEGIN: wtz-screen.xml (full upstream content)                    -->
+  <!-- ================================================================ -->
+
+  <copyright>
+    Copyright © 2023 Samsung Electronics Co., Ltd.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="Protocol to describe screens">
+    This is the waylanad protocol for supporting tizen-specific screen which is
+    the logical screen provided by Tizen Display Server.
+  </description>
+
+  <interface name="wtz_screen" version="1">
+    <description summary="compositor logical region">
+      A screen describes rectangular area which can display on physical
+      output devices of the compositor geometry. This object is published
+      as global during start up, or when a compositor creates a screen.
+    </description>
+
+    <enum name="error">
+      <description summary="error type">
+        Type of error.
+      </description>
+      <entry name="none" value="0" summary="none"/>
+      <entry name="invalid_parameter" value="1" summary="invalid parameter"/>
+      <entry name="not_supported" value="2" summary="no support"/>
+    </enum>
+
+    <enum name="capability">
+      <description summary="screen capability types">
+        The functional capability type which a wtz_screen can support.
+      </description>
+      <entry name="none" value="0" summary="none"/>
+      <entry name="splitscreen" value="1" summary="splitscreen capatility"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the wtz_screen object">
+       Notify when the server that it is not going to use the wtz_screen
+       object anymore.
+      </description>
+    </request>
+
+    <event name="size">
+      <description summary="size of the screen">
+        The size event describes the size of the screen.
+        [TODO] example and scenario for this logical screen size event
+      </description>
+      <arg name="width" type="uint"
+       summary="screen width"/>
+      <arg name="height" type="uint"
+       summary="screen height"/>
+    </event>
+
+    <event name="name">
+      <description summary="name of this screen">
+       Many compositors will assign names to their screen, show them to the
+       user, allow them to be configured by name, etc.
+      </description>
+      <arg name="name" type="string" summary="screen name"/>
+    </event>
+
+     <event name="capabilities">
+      <description summary="an array of the capability which the screen support">
+       Notify the array of the screen capabilities. The clients get this event when it
+       binds the wtz_screen global resource.
+      </description>
+      <arg name="capabilities" type="array" summary="screen capabilities"/>
+    </event>
+
+    <request name="get_splitscreen">
+      <description summary="destroy the wtz_screen object">
+       Get the wtz_splitscreen when this wtz_screen has the splitscreen capability.
+       When it has no splitscreen capability, not_supported error is raised.
+      </description>
+      <arg name="id" type="new_id" interface="wtz_splitscreen" summary="the new wtz_splitscreen object"/>
+    </request>
+
+    <request name="assign_surface">
+      <description summary="request to assign wtz_surface">
+        Request to assign wtz_surface to the current screen.
+      </description>
+      <arg name="surface" type="object" interface="wtz_surface"/>
+    </request>
+
+    <event name="surface_assigned">
+      <description summary="Notification of a new surface assignment">
+        Notifies that a new wtz_surface has been assigned to this screen.
+        This event can be sent either as a response to the assign_surface request
+        or triggered by the display server's internal operations.
+      </description>
+      <arg name="surface" type="object" interface="wtz_surface"
+       summary="The wtz_surface object that has been assigned to this screen."/>
+    </event>
+
+    <event name="seat_assigned">
+      <description summary="Notification of a seat assignment">
+        Notifies that a wl_seat has been assigned to this screen.
+        This event can be sent when a client binds the wtz_screen global resource
+        or triggered by the display server's internal operations.
+      </description>
+      <arg name="seat" type="object" interface="wl_seat"
+       summary="The wl_seat object assigned to this screen."/>
+    </event>
+
+  </interface>
+
+  <interface name="wtz_splitscreen" version="1">
+    <description summary="the split screen">
+      The wtz_splitscreen is for managing split regions of the target wtz_screen.
+      This interface can get get_splitscreen request of the wtz_screen.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy wtz_splitscreen">
+        Destroy wtz_splitscreen.
+      </description>
+    </request>
+
+    <event name="region">
+      <description summary="the splitscreen region object">
+        Notify the splitscreen region that partial rectangle area of the wtz_screen.
+        The event can be repeated during all of the region information send to client.
+      </description>
+      <arg name="region" type="new_id" interface="wtz_splitscreen_region" summary="the splitscreen region object" />
+    </event>
+
+    <request name="activate">
+      <description summary="activate the splitscreen">
+        Activate the splitscreen.
+      </description>
+    </request>
+
+    <request name="deactivate">
+      <description summary="deactivate the splitscreen">
+        Deactivate the splitscreen.
+      </description>
+    </request>
+
+  </interface>
+
+  <interface name="wtz_splitscreen_region" version="1">
+    <description summary="the split screen region information">
+      The wtz_splitscreen_region interface for request and receive the information of the target region.
+      The interface only can get information.
+      And the setting of the splitscreen region is depends on the implementation of the display server.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy wtz_splitscreen_region">
+        Destroy wtz_splitscreen.
+      </description>
+    </request>
+
+    <event name="name">
+      <description summary="name of the wtz_splitscreen_region">
+        Send name of the wtz_splitscreen_region in a screen.
+      </description>
+      <arg name="name" type="string"/>
+    </event>
+
+    <event name="geometry">
+      <description summary="geometry of the wtz_splitscreen_region">
+        Send geometry of the wtz_splitscreen_region in a screen.
+      </description>
+      <arg name="x" type="uint"/>
+      <arg name="y" type="uint"/>
+      <arg name="w" type="uint"/>
+      <arg name="h" type="uint"/>
+    </event>
+
+    <request name="assign_appid">
+      <description summary="request to assign appid">
+        Request to assign appid to the splitscreen region.
+      </description>
+      <arg name="appid" type="string"/>
+    </request>
+
+  </interface>
+
+
+  <!-- ================================================================ -->
+  <!-- BEGIN: wtz-shell.xml (full upstream content, merged into one     -->
+  <!--        protocol file so wayland-scanner can resolve the          -->
+  <!--        wtz_surface.screen → wtz_screen cross-reference in a      -->
+  <!--        single pass. Both files are full-fat upstream verbatim.)  -->
+  <!-- ================================================================ -->
+  <interface name="wtz_shell" version="1">
+    <description summary="create tizen-style surfaces">
+      wtz_shell allows clients to turn a wl_surface into a wtz_surface which can
+      support the Tizen features in Tizen Dispaly Server.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the wtz_shell object">
+       Destroy this wtz_shell object.
+       Notify when the server that it is not going to use the wtz_shell
+       object anymore.
+      </description>
+    </request>
+
+    <request name="get_wtz_surface">
+      <description summary="create a tizen shell surface from a surface">
+       This creates a wtz_surface for the given surface.
+      </description>
+      <arg name="id" type="new_id" interface="wtz_surface"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="wtz_surface" version="1">
+    <description summary="tizen-specific user interface surface">
+      An interface that may be implemented by a wl_surface, for
+      implementations that provide a tizen-specific user interface.
+    </description>
+
+    <enum name="decoration_type">
+      <description summary="type of decoration">
+        This describes the type of decoration.
+      </description>
+      <entry name="none" value="0" summary="no decoration"/>
+      <entry name="client_side" value="1" summary="the client-side decoration"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the wtz_surface">
+        Destroy the xdg_surface object.
+      </description>
+    </request>
+
+    <event name="decoration">
+      <description summary="capability of the client-side decoration">
+       Notify this event when the decoration type of the wtz_surface has been
+       decided or changed.
+      </description>
+      <arg name="type" type="uint" enum="decoration_type"
+       summary="the type of decoration"/>
+    </event>
+
+     <event name="screen">
+      <description summary="tizen screen which this surface locates">
+       Notify this event when this surface is assigned in the screen.
+       This event will alternate with the wtz_surface@surface_assigned event.
+      </description>
+       <arg name="screen" type="object" interface="wtz_screen"
+       summary="the tizen screen object"/>
+    </event>
+
+  </interface>
+
+</protocol>
