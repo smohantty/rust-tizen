@@ -11,8 +11,13 @@ use tizen_window_sys::wtz_shell::wtz_shell::WtzShell;
 use tizen_window_sys::xdg_shell_v6::zxdg_shell_v6::ZxdgShellV6;
 use wayland_backend::client::{Backend, ObjectData, ObjectId};
 use wayland_backend::protocol::Message;
-use wayland_client::protocol::{wl_compositor::WlCompositor, wl_registry, wl_seat::WlSeat};
-use wayland_client::{Connection, Dispatch, EventQueue, Proxy, QueueHandle};
+use wayland_client::protocol::{
+    wl_compositor::WlCompositor,
+    wl_pointer::WlPointer,
+    wl_registry,
+    wl_seat::{self, WlSeat},
+};
+use wayland_client::{Connection, Dispatch, EventQueue, Proxy, QueueHandle, WEnum};
 
 use crate::error::{Error, Result};
 use crate::window::WindowState;
@@ -232,13 +237,93 @@ impl Dispatch<WlCompositor, ()> for WindowState {
 
 impl Dispatch<WlSeat, ()> for WindowState {
     fn event(
-        _: &mut Self,
-        _: &WlSeat,
-        _: <WlSeat as Proxy>::Event,
+        state: &mut Self,
+        seat: &WlSeat,
+        event: <WlSeat as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        qh: &QueueHandle<Self>,
+    ) {
+        if let wl_seat::Event::Capabilities {
+            capabilities: WEnum::Value(caps),
+        } = event
+        {
+            let has_pointer = caps.contains(wl_seat::Capability::Pointer);
+            if has_pointer && state.pointer.is_none() {
+                state.pointer = Some(seat.get_pointer(qh, ()));
+            }
+        }
+    }
+}
+
+// `WlPointer` lives on the same dispatch state as the rest of the
+// window. The compositor only delivers pointer events for surfaces we
+// own, so we don't filter by `surface` id today.
+impl Dispatch<WlPointer, ()> for WindowState {
+    fn event(
+        state: &mut Self,
+        _: &WlPointer,
+        event: <WlPointer as Proxy>::Event,
         _: &(),
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
+        use wayland_client::protocol::wl_pointer::{Axis, ButtonState, Event};
+        match event {
+            Event::Enter {
+                surface_x,
+                surface_y,
+                ..
+            } => state.pending_events.push(crate::Event::CursorEntered {
+                x: surface_x,
+                y: surface_y,
+            }),
+            Event::Leave { .. } => state.pending_events.push(crate::Event::CursorLeft),
+            Event::Motion {
+                surface_x,
+                surface_y,
+                ..
+            } => state.pending_events.push(crate::Event::CursorMoved {
+                x: surface_x,
+                y: surface_y,
+            }),
+            Event::Button {
+                button,
+                state: btn_state,
+                ..
+            } => {
+                let pressed = matches!(btn_state, WEnum::Value(ButtonState::Pressed));
+                state.pending_events.push(crate::Event::MouseInput {
+                    button: evdev_to_mouse_button(button),
+                    pressed,
+                });
+            }
+            Event::Axis { axis, value, .. } => {
+                let (dx, dy) = match axis {
+                    WEnum::Value(Axis::HorizontalScroll) => (value, 0.0),
+                    WEnum::Value(Axis::VerticalScroll) => (0.0, value),
+                    _ => (0.0, 0.0),
+                };
+                state
+                    .pending_events
+                    .push(crate::Event::MouseWheel { dx, dy });
+            }
+            _ => {}
+        }
+    }
+}
+
+// Maps Linux evdev `BTN_*` codes (input-event-codes.h) — the wire
+// values `wl_pointer.button` carries — to our winit-shaped enum.
+fn evdev_to_mouse_button(code: u32) -> crate::MouseButton {
+    use crate::MouseButton;
+    match code {
+        0x110 => MouseButton::Left,    // BTN_LEFT
+        0x111 => MouseButton::Right,   // BTN_RIGHT
+        0x112 => MouseButton::Middle,  // BTN_MIDDLE
+        0x113 => MouseButton::Back,    // BTN_SIDE
+        0x114 => MouseButton::Forward, // BTN_EXTRA
+        other => MouseButton::Other(other as u16),
     }
 }
 

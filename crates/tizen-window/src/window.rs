@@ -13,7 +13,8 @@ use tizen_window_sys::xdg_shell_v6::{
     zxdg_shell_v6::ZxdgShellV6, zxdg_surface_v6::ZxdgSurfaceV6, zxdg_toplevel_v6::ZxdgToplevelV6,
 };
 use wayland_client::protocol::{
-    wl_buffer::WlBuffer, wl_compositor::WlCompositor, wl_seat::WlSeat, wl_surface::WlSurface,
+    wl_buffer::WlBuffer, wl_compositor::WlCompositor, wl_pointer::WlPointer, wl_seat::WlSeat,
+    wl_surface::WlSurface,
 };
 use wayland_client::{Connection, Dispatch, Proxy, QueueHandle};
 
@@ -311,6 +312,10 @@ pub(crate) struct WindowState {
     pub(crate) wtz_shell: Option<WtzShell>,
     pub(crate) tz_policy: Option<TizenPolicy>,
     pub(crate) seat: Option<WlSeat>,
+    /// Bound lazily when the seat advertises the `pointer` capability.
+    /// Held for the duration of the queue — dropped via the
+    /// scanner-generated destructor when [`Display`] drops.
+    pub(crate) pointer: Option<WlPointer>,
 
     // Window-level state.
     pub(crate) width: u32,

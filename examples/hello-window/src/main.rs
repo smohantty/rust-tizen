@@ -65,6 +65,14 @@ fn main() -> std::process::ExitCode {
             window.fill_solid(colour);
         }
         Event::RedrawRequested => window.fill_solid(colour),
+        Event::CursorEntered { x, y } => println!("hello-window: cursor enter at {x:.1},{y:.1}"),
+        Event::CursorLeft => println!("hello-window: cursor leave"),
+        Event::CursorMoved { x, y } => println!("hello-window: cursor at {x:.1},{y:.1}"),
+        Event::MouseInput { button, pressed } => {
+            let what = if pressed { "press" } else { "release" };
+            println!("hello-window: mouse {what} {button:?}");
+        }
+        Event::MouseWheel { dx, dy } => println!("hello-window: wheel dx={dx:.2} dy={dy:.2}"),
         _ => {}
     });
 

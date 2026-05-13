@@ -88,7 +88,7 @@ What's missing to render egui:
 │   1.2 ☑ wl_surface.frame callback API                        │
 │   1.3 ☑ Repaint on configure (compositor resize)             │
 │   1.4 ☑ Display::run event-loop helper                       │
-│   1.5 ☐ wl_pointer wiring (enter/leave/motion/button/wheel)  │
+│   1.5 ☑ wl_pointer wiring (enter/leave/motion/button/wheel)  │
 │   1.6 ☐ wl_keyboard wiring (raw keycodes; xkb deferred)      │
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 2 — `tizen-egl` crate + EGL probe                      │
@@ -150,10 +150,23 @@ choice. No new crates; pure additions to `tizen-window`.
       field shapes mirror `winit::event::WindowEvent`. Pointer and
       keyboard variants get wired in 1.5 / 1.6.
 
-- [ ] **1.5 wl_pointer wiring.** Bind seat → wl_pointer; dispatch
-      `enter`, `leave`, `motion`, `button`, `axis` events; deliver
-      through the winit-shaped `Event::Cursor*` / `MouseInput` /
-      `MouseWheel` variants.
+- [x] **1.5 wl_pointer wiring.** `Dispatch<WlSeat>` listens for the
+      `capabilities` event and calls `seat.get_pointer(...)` on the
+      first `Pointer` cap; the resulting `WlPointer` lives in
+      `WindowState::pointer`. `Dispatch<WlPointer>` maps:
+
+  | wl_pointer event | crate::Event |
+  |---|---|
+  | `enter { surface_x, surface_y }` | `CursorEntered { x, y }` |
+  | `leave` | `CursorLeft` |
+  | `motion { surface_x, surface_y }` | `CursorMoved { x, y }` |
+  | `button { button, state }` | `MouseInput { button, pressed }` |
+  | `axis { axis, value }` | `MouseWheel { dx, dy }` |
+
+  Evdev `BTN_*` codes (0x110…0x114) are translated to the
+  winit-shaped `MouseButton` enum; everything else surfaces as
+  `MouseButton::Other(code as u16)`. `hello-window` logs every
+  pointer event for on-device verification.
 
 - [ ] **1.6 wl_keyboard wiring (raw keycodes).** Bind seat →
       wl_keyboard; deliver `enter`, `leave`, `modifiers`, `key`. v1
