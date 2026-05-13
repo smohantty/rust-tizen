@@ -210,6 +210,10 @@ name = "tizen-dlog-sys"
 version = "0.1.0"
 
 [[package]]
+name = "tizen-egl-sys"
+version = "0.1.0"
+
+[[package]]
 name = "tizen-input"
 version = "0.1.0"
 dependencies = [

@@ -92,7 +92,7 @@ What's missing to render egui:
 │   1.6 ☑ wl_keyboard wiring (raw keycodes; xkb deferred)      │
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 2 — `tizen-egl` crate + EGL probe                      │
-│   2.1 ☐ tizen-egl-sys (wl_egl_window FFI)                    │
+│   2.1 ☑ tizen-egl-sys (wl_egl_window FFI)                    │
 │   2.2 ☐ tizen-egl safe wrapper                               │
 │   2.3 ☐ Umbrella `egl` feature                               │
 │   2.4 ☐ examples/hello-egl-probe — go/no-go for GLES 3.x     │
@@ -197,9 +197,13 @@ The single new platform crate. Wraps `libwayland-egl.so.1` (in the
 rootstrap, no dlopen needed) and exposes an `EglWindow` that
 `khronos-egl` can use to create a window surface.
 
-- [ ] **2.1 `tizen-egl-sys`.** Extern "C" bindings for
-      `wl_egl_window_create / _destroy / _resize`. ~30 LOC.
-      `#[cfg_attr(tizen, link(name = "wayland-egl", kind = "dylib"))]`.
+- [x] **2.1 `tizen-egl-sys`.** New `#![no_std]` crate at
+      `crates/tizen-egl-sys` with `extern "C"` declarations for
+      `wl_egl_window_create / _destroy / _resize` and the opaque
+      `wl_egl_window` ZST. Link gated on `cfg(tizen)` —
+      `libwayland-egl.so.1` is in the Tizen rootstrap so no `dlopen`
+      shim is needed. Registered in the workspace's
+      `[workspace.dependencies]`.
 
 - [ ] **2.2 `tizen-egl`.** Safe wrapper. Public:
 
