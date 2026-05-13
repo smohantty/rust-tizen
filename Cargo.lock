@@ -177,6 +177,7 @@ version = "0.1.0"
 dependencies = [
  "tizen-app",
  "tizen-dlog",
+ "tizen-egl",
  "tizen-input",
  "tizen-screenshot",
  "tizen-window",
@@ -208,6 +209,14 @@ dependencies = [
 [[package]]
 name = "tizen-dlog-sys"
 version = "0.1.0"
+
+[[package]]
+name = "tizen-egl"
+version = "0.1.0"
+dependencies = [
+ "raw-window-handle",
+ "tizen-egl-sys",
+]
 
 [[package]]
 name = "tizen-egl-sys"

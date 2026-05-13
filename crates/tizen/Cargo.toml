@@ -20,6 +20,7 @@ app-tokio = ["app", "tizen-app/tokio"]
 input = ["dep:tizen-input"]
 screenshot = ["dep:tizen-screenshot"]
 window = ["dep:tizen-window"]
+egl = ["window", "dep:tizen-egl"]
 
 [dependencies]
 tizen-dlog = { workspace = true, optional = true }
@@ -27,6 +28,7 @@ tizen-app = { workspace = true, optional = true }
 tizen-input = { workspace = true, optional = true }
 tizen-screenshot = { workspace = true, optional = true }
 tizen-window = { workspace = true, optional = true }
+tizen-egl = { workspace = true, optional = true }
 
 [lints]
 workspace = true

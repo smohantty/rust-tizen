@@ -51,3 +51,9 @@ pub use tizen_screenshot as screenshot;
 #[cfg(feature = "window")]
 #[cfg_attr(docsrs, doc(cfg(feature = "window")))]
 pub use tizen_window as window;
+
+/// `wl_egl_window` surface construction for GLES/EGL renderers
+/// (egui_glow, glutin's raw-handle path, …).
+#[cfg(feature = "egl")]
+#[cfg_attr(docsrs, doc(cfg(feature = "egl")))]
+pub use tizen_egl as egl;

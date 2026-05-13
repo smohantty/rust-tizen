@@ -1,0 +1,22 @@
+[package]
+name = "tizen-egl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Safe wrapper for libwayland-egl on Tizen: build an EGL window surface from a Wayland surface"
+categories = ["api-bindings", "rendering"]
+keywords = ["tizen", "wayland", "egl", "gles"]
+readme = "README.md"
+
+[lib]
+
+[dependencies]
+tizen-egl-sys.workspace = true
+raw-window-handle = "0.6"
+
+[lints]
+workspace = true

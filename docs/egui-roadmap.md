@@ -93,8 +93,8 @@ What's missing to render egui:
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 2 — `tizen-egl` crate + EGL probe                      │
 │   2.1 ☑ tizen-egl-sys (wl_egl_window FFI)                    │
-│   2.2 ☐ tizen-egl safe wrapper                               │
-│   2.3 ☐ Umbrella `egl` feature                               │
+│   2.2 ☑ tizen-egl safe wrapper                               │
+│   2.3 ☑ Umbrella `egl` feature                               │
 │   2.4 ☐ examples/hello-egl-probe — go/no-go for GLES 3.x     │
 ├──────────────────────────────────────────────────────────────┤
 │ Phase 3 — egui hello world                                   │
@@ -205,21 +205,30 @@ rootstrap, no dlopen needed) and exposes an `EglWindow` that
       shim is needed. Registered in the workspace's
       `[workspace.dependencies]`.
 
-- [ ] **2.2 `tizen-egl`.** Safe wrapper. Public:
+- [x] **2.2 `tizen-egl`.** Safe wrapper. Public:
 
   ```rust
-  pub struct EglWindow { /* … */ }
-  impl EglWindow {
-      pub fn new(window: &tizen_window::Window, w: u32, h: u32) -> Result<Self>;
-      pub fn as_egl_ptr(&self) -> *mut c_void;       // for eglCreateWindowSurface
+  pub struct EglWindow<'w> { /* … */ }
+  impl<'w> EglWindow<'w> {
+      pub fn new<W: HasWindowHandle>(window: &'w W, w: u32, h: u32) -> Result<Self>;
+      pub fn as_ptr(&self) -> *mut c_void;            // hand to eglCreateWindowSurface
       pub fn resize(&self, w: u32, h: u32, dx: i32, dy: i32);
   }
   // Drop frees the wl_egl_window.
   ```
 
-- [ ] **2.3 Umbrella `egl` feature.** Add `egl = ["window",
-      "dep:tizen-egl"]` to `tizen/Cargo.toml`. Document in the
-      umbrella's README.
+  The actual API is generic over [`raw_window_handle::HasWindowHandle`]
+  rather than the roadmap's original `&tizen_window::Window` — this
+  keeps `tizen-egl` free of any inter-platform-crate dependency
+  (matching the ecosystem convention winit/glutin use). The
+  lifetime parameter ties the EGL window to the windowing handle's
+  borrow, so the compiler enforces "wl_surface outlives wl_egl_window"
+  instead of a runtime contract.
+
+- [x] **2.3 Umbrella `egl` feature.** `tizen/Cargo.toml` exposes
+      `egl = ["window", "dep:tizen-egl"]`; `tizen/src/lib.rs`
+      re-exports the crate as `tizen::egl` behind the same feature.
+      `cargo check -p tizen --features egl` clean.
 
 - [ ] **2.4 `hello-egl-probe`.** Tiny example that:
       ① opens a Window, ② creates an EglWindow, ③ initialises EGL,
