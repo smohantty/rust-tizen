@@ -10,10 +10,9 @@
 //!   info                 Probe compositor: max_touch_count, accepted classes
 //!   help                 Print this help
 //!
-//!   nav <preset|random|KEY [KEY ...]>
+//!   nav <preset|KEY [KEY ...]>
 //!                        Keyboard injection. `preset` is one of:
 //!                        luud, rrrd, box, back, home.
-//!                        `random` picks 4–8 random arrows + Return.
 //!                        Otherwise tokens are X11 keysym names sent in order.
 //!
 //!   key <NAME> [press|release]
@@ -56,8 +55,6 @@ const PRESETS: &[(&str, &[&str])] = &[
     ("back", &["XF86Back"]),
     ("home", &["XF86Home"]),
 ];
-
-const DIRS: &[&str] = &["Up", "Down", "Left", "Right"];
 
 const DEFAULT_X: u32 = 960;
 const DEFAULT_Y: u32 = 540;
@@ -113,10 +110,9 @@ fn info_cmd() -> Result<(), Error> {
 fn nav_cmd(args: &[String]) -> Result<(), Error> {
     let keys: Vec<String> = match args.first().map(String::as_str) {
         None => {
-            eprintln!("hello-input: `nav` needs a preset, `random`, or one or more key names");
+            eprintln!("hello-input: `nav` needs a preset or one or more key names");
             return Ok(());
         }
-        Some("random") => random_sequence(),
         Some(name) if args.len() == 1 && find_preset(name).is_some() => preset_keys(name),
         _ => args.to_vec(),
     };
@@ -248,27 +244,6 @@ fn preset_keys(name: &str) -> Vec<String> {
         .collect()
 }
 
-fn random_sequence() -> Vec<String> {
-    let mut s = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(1)
-        .max(1);
-    let mut next = || {
-        s ^= s << 13;
-        s ^= s >> 7;
-        s ^= s << 17;
-        s
-    };
-
-    let len = 4 + (next() % 5) as usize;
-    let mut keys: Vec<String> = (0..len)
-        .map(|_| DIRS[(next() as usize) % DIRS.len()].to_string())
-        .collect();
-    keys.push("Return".into());
-    keys
-}
-
 fn print_help() {
     print!(
         r#"hello-input — synthetic input injection for Tizen Wayland
@@ -280,9 +255,8 @@ SUBCOMMANDS:
     info                          Probe compositor capabilities + max_touch_count
     help                          Print this help
 
-    nav <preset|random|KEY ...>   Keyboard navigation.
+    nav <preset|KEY ...>          Keyboard navigation.
                                   Presets: luud, rrrd, box, back, home.
-                                  `random` picks 4–8 random arrows + Return.
                                   Otherwise tokens are X11 keysym names in order.
 
     key <NAME> [press|release]    One key (defaults to press+release pair).
@@ -294,7 +268,6 @@ SUBCOMMANDS:
 EXAMPLES:
     hello-input info
     hello-input nav luud
-    hello-input nav random
     hello-input nav Up Up Right Return
     hello-input key XF86Back
     hello-input click 200 400
