@@ -5,6 +5,11 @@
 //! and `egui_glow` (the egui GL backend). The render loop runs an
 //! animated egui UI on every `RedrawRequested`.
 //!
+//! Boot-time milestones are printed with `[launch +NNN ms] label` so the
+//! first-frame latency breakdown is visible in the log without any
+//! external profiler. The summary line `first_frame_ms = N` is what to
+//! grep for.
+//!
 //! ## Cross-compile + run
 //!
 //! ```sh
@@ -25,33 +30,45 @@ use tizen::egl::EglWindow;
 use tizen::window::{Display, Event, WindowBuilder};
 
 fn main() -> std::process::ExitCode {
-    if let Err(e) = run() {
+    // `LAUNCH` is captured as early as possible so the first milestone
+    // is "main entered" rather than "after argv parsing." `Instant`
+    // uses CLOCK_MONOTONIC under the hood.
+    let launch = Instant::now();
+    mark(launch, "main entered");
+    if let Err(e) = run(launch) {
         eprintln!("hello-egui-gpu: {e}");
         return std::process::ExitCode::FAILURE;
     }
     std::process::ExitCode::SUCCESS
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Open window.
+fn mark(launch: Instant, label: &str) {
+    let ms = launch.elapsed().as_secs_f64() * 1000.0;
+    println!("[launch +{ms:>7.2} ms] {label}");
+}
+
+fn run(launch: Instant) -> Result<(), Box<dyn std::error::Error>> {
     let mut display = Display::connect()?;
+    mark(launch, "Display::connect");
+
     let mut window = WindowBuilder::new()
         .title("hello-egui-gpu")
         .app_id("rust.tizen.hello-egui-gpu")
         .size(1920, 1080)
         .build(&display)?;
+    mark(launch, "WindowBuilder::build");
+
     display.roundtrip(&mut window)?;
     let (init_w, init_h) = window.size();
-    println!("hello-egui-gpu: configured at {init_w}x{init_h}");
+    mark(launch, &format!("first configure ({init_w}x{init_h})"));
 
-    // 2. Build wl_egl_window. SAFETY: `window` lives for the rest of
-    //    `run`, and `egl_window` drops first (LIFO of bindings).
+    // SAFETY: `window` lives for the rest of `run`, `egl_window` drops first.
     let egl_window = unsafe { EglWindow::new(&window, init_w, init_h)? };
+    mark(launch, "EglWindow::new");
 
-    // 3. Load libEGL.
     let egl_lib = unsafe { egl::DynamicInstance::<egl::EGL1_4>::load_required()? };
+    mark(launch, "libEGL loaded");
 
-    // 4. EGL display + config.
     let wl_display_ptr = match display
         .display_handle()
         .map_err(|e| format!("display_handle: {e}"))?
@@ -65,8 +82,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             .get_display(wl_display_ptr)
             .ok_or("eglGetDisplay returned NO_DISPLAY")?
     };
-    let (major, minor) = egl_lib.initialize(egl_display)?;
-    println!("hello-egui-gpu: EGL {major}.{minor}");
+    let (egl_major, egl_minor) = egl_lib.initialize(egl_display)?;
+    mark(launch, &format!("eglInitialize ({egl_major}.{egl_minor})"));
     egl_lib.bind_api(egl::OPENGL_ES_API)?;
 
     let cfg_attrs = [
@@ -84,19 +101,18 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .choose_first_config(egl_display, &cfg_attrs)?
         .ok_or("no matching EGL config")?;
 
-    // GLES 3 first, fall back to 2.
     let (context, gl_major) = match try_context(&egl_lib, egl_display, config, 3) {
         Ok(c) => (c, 3),
         Err(_) => (try_context(&egl_lib, egl_display, config, 2)?, 2),
     };
-    println!("hello-egui-gpu: GLES {gl_major} context");
+    mark(launch, &format!("eglCreateContext (GLES {gl_major})"));
 
     let egl_surface = unsafe {
         egl_lib.create_window_surface(egl_display, config, egl_window.as_ptr(), None)?
     };
     egl_lib.make_current(egl_display, Some(egl_surface), Some(egl_surface), Some(context))?;
+    mark(launch, "eglMakeCurrent");
 
-    // 5. glow + egui.
     let gl = Arc::new(unsafe {
         glow::Context::from_loader_function(|name| {
             egl_lib
@@ -105,21 +121,19 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or(ptr::null())
         })
     });
-    unsafe {
-        println!(
-            "hello-egui-gpu: GL_VERSION = {}",
-            gl.get_parameter_string(glow::VERSION)
-        );
-    }
+    mark(launch, "glow::Context");
+
     let mut painter = egui_glow::Painter::new(gl.clone(), "", None, false)
         .map_err(|e| format!("egui_glow::Painter::new: {e}"))?;
+    mark(launch, "egui_glow::Painter");
+
     let egui_ctx = egui::Context::default();
 
-    // 6. Render loop state.
     let start = Instant::now();
     let mut frame: u64 = 0;
     let mut last_log = Instant::now();
     let mut frames_since_log: u64 = 0;
+    let mut first_frame_done = false;
     window.request_redraw();
 
     display.run(&mut window, |window, event| match event {
@@ -156,10 +170,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 });
             });
 
+            if !first_frame_done {
+                mark(launch, "first egui pass (tessellate ahead)");
+            }
             let primitives = egui_ctx.tessellate(full.shapes, full.pixels_per_point);
 
-            // Animated clear colour so we can tell the GL path is live
-            // even without any input.
             let r = 0.05 + 0.05 * (t * 0.7).sin().abs();
             let g = 0.05 + 0.05 * (t * 1.1).sin().abs();
             let b = 0.10 + 0.05 * (t * 1.3).sin().abs();
@@ -176,6 +191,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             let _ = egl_lib.swap_buffers(egl_display, egl_surface);
+
+            if !first_frame_done {
+                let ms = launch.elapsed().as_secs_f64() * 1000.0;
+                mark(launch, "first eglSwapBuffers returned");
+                println!("hello-egui-gpu: first_frame_ms = {ms:.2}");
+                first_frame_done = true;
+            }
 
             frame += 1;
             frames_since_log += 1;
