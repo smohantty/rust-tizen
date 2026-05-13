@@ -28,6 +28,46 @@ This keeps `tizen-window` usable by anyone — not just egui — and
 prevents the "the platform crate forces a specific framework on
 me" anti-pattern.
 
+### Use what popular crates provide, don't invent
+
+Where there's an existing ecosystem standard, we adopt it directly:
+
+| Concern | What we use |
+|---|---|
+| Surface discovery for renderers | `raw-window-handle = "0.6"` — `HasDisplayHandle` / `HasWindowHandle` |
+| Bitflag modifier state | `bitflags = "2"` — mirror `winit::keyboard::ModifiersState` field names (`SHIFT`, `CTRL`, `ALT`, `LOGO`) |
+| Pointer button enum | Variant names match `winit::event::MouseButton` (`Left`, `Right`, `Middle`, `Back`, `Forward`, `Other(u16)`) |
+
+Where there's no universal crate (e.g. an Event enum that all UI
+frameworks accept), we **mirror winit's shape** rather than invent a
+new vocabulary:
+
+```rust
+// tizen-window's Event mirrors winit::event::WindowEvent variants
+pub enum Event {
+    Resized { width: u32, height: u32 },     // ≈ Resized(PhysicalSize)
+    RedrawRequested,                          // = RedrawRequested
+    CloseRequested,                           // = CloseRequested
+
+    Focused(bool),                            // = Focused(bool)
+
+    CursorEntered { x: f64, y: f64 },        // ≈ CursorEntered { device_id }
+    CursorLeft,                               // ≈ CursorLeft  { device_id }
+    CursorMoved  { x: f64, y: f64 },         // ≈ CursorMoved  { device_id, position }
+    MouseInput   { button: MouseButton, pressed: bool },
+                                              // ≈ MouseInput   { device_id, state, button }
+    MouseWheel   { dx: f64, dy: f64 },       // ≈ MouseWheel   { device_id, delta }
+
+    KeyboardInput { keycode: u32, pressed: bool, modifiers: ModifiersState },
+                                              // ≈ KeyboardInput { device_id, event, is_synthetic }
+}
+```
+
+We don't *depend* on `winit` itself (it's a heavy cross-platform
+windowing crate that wants to own the window — not relevant for us);
+we just match its public type shapes so anyone who already knows
+winit needs zero new mental model.
+
 ## Status snapshot
 
 What we already have (built in prior sessions):
@@ -94,44 +134,41 @@ choice. No new crates; pure additions to `tizen-window`.
       redraw callback so the buffer matches. Today we stay at 640×480
       even when the compositor places us at 1920×1080.
 
-- [ ] **1.4 Event loop helper + generic Event enum.** Bare-bones
+- [ ] **1.4 Event loop helper + winit-shaped Event enum.** Bare-bones
       `Display::run(window, callback)` that blocks dispatching events.
-      The enum is framework-agnostic — modelled after winit's events
-      so any UI framework can adapt easily:
+      Variant names and field shapes mirror `winit::event::WindowEvent`
+      (see Design Rules section above):
 
   ```rust
   pub enum Event {
-      Configure { width: u32, height: u32 },
-      Redraw,
+      Resized { width: u32, height: u32 },
+      RedrawRequested,
       CloseRequested,
-
-      PointerEntered { x: f64, y: f64 },
-      PointerLeft,
-      PointerMoved { x: f64, y: f64 },
-      PointerButton { button: PointerButton, pressed: bool, x: f64, y: f64 },
-      PointerWheel { dx: f64, dy: f64 },
-
-      KeyboardEnter,
-      KeyboardLeft,
-      Key { keycode: u32, pressed: bool, modifiers: ModifierState },
+      Focused(bool),
+      CursorEntered { x: f64, y: f64 },
+      CursorLeft,
+      CursorMoved   { x: f64, y: f64 },
+      MouseInput    { button: MouseButton, pressed: bool },
+      MouseWheel    { dx: f64, dy: f64 },
+      KeyboardInput { keycode: u32, pressed: bool, modifiers: ModifiersState },
   }
   ```
 
-  `PointerButton`, `ModifierState` defined alongside. Touch deferred
-  (target has no touchscreen). Crucially: **no egui types in this
-  enum**. The example does the egui translation.
+  `MouseButton`, `ModifiersState` mirror winit's shapes. No egui types
+  leak into this enum — the example does the egui translation.
 
 - [ ] **1.5 wl_pointer wiring.** Bind seat → wl_pointer; dispatch
       `enter`, `leave`, `motion`, `button`, `axis` events; deliver
-      through the `Event` enum above.
+      through the winit-shaped `Event::Cursor*` / `MouseInput` /
+      `MouseWheel` variants.
 
 - [ ] **1.6 wl_keyboard wiring (raw keycodes).** Bind seat →
       wl_keyboard; deliver `enter`, `leave`, `modifiers`, `key`. v1
-      ships **raw evdev keycodes** in `Event::Key { keycode, … }` —
-      no xkbcommon, no text-input. egui's hello-world demo only
-      needs Esc / Enter / arrow keys to be interactive enough, all
-      mappable from raw keycodes. Full xkbcommon + UTF-8 text input
-      is post-MVP.
+      ships **raw evdev keycodes** in `Event::KeyboardInput {
+      keycode, … }` — no xkbcommon, no text-input. egui's
+      hello-world demo only needs Esc / Enter / arrow keys to be
+      interactive enough, all mappable from raw keycodes. Full
+      xkbcommon + UTF-8 text input is post-MVP.
 
 ## Phase 2 — `tizen-egl` + capability probe
 
