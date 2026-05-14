@@ -6,6 +6,7 @@ use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, RawDisplayHandle, WaylandDisplayHandle,
 };
 use tizen_tbm_sys::wayland_tbm;
+use tizen_window_sys::tizen_extension::tizen_keyrouter::TizenKeyrouter;
 use tizen_window_sys::tizen_extension::tizen_policy::TizenPolicy;
 use tizen_window_sys::wtz_shell::wtz_shell::WtzShell;
 use tizen_window_sys::xdg_shell_v6::zxdg_shell_v6::ZxdgShellV6;
@@ -32,6 +33,8 @@ pub struct Display {
     pub(crate) xdg_shell: ZxdgShellV6,
     pub(crate) wtz_shell: WtzShell,
     pub(crate) tz_policy: Option<TizenPolicy>,
+    pub(crate) tz_keyrouter: Option<TizenKeyrouter>,
+    pub(crate) xkb: Option<std::sync::Arc<crate::xkb::XkbState>>,
     pub(crate) tbm_client: TbmClientHandle,
 }
 
@@ -68,6 +71,20 @@ impl Display {
             .roundtrip(&mut state)
             .map_err(|e| Error::Transport(e.to_string()))?;
 
+        // Two more roundtrips so the seat's `Capabilities` event fires,
+        // we bind `wl_keyboard`, and the compositor delivers the
+        // `wl_keyboard.keymap` event. After this the
+        // `state.xkb` field is populated and `WindowBuilder::build`
+        // can resolve key names → keycodes.
+        for _ in 0..2 {
+            if state.xkb.is_some() {
+                break;
+            }
+            queue
+                .roundtrip(&mut state)
+                .map_err(|e| Error::Transport(e.to_string()))?;
+        }
+
         let compositor = state
             .compositor
             .clone()
@@ -85,6 +102,8 @@ impl Display {
         // (the compositor places client surfaces below the launcher
         // until tizen_policy.show / .activate is called).
         let tz_policy = state.tz_policy.clone();
+        let tz_keyrouter = state.tz_keyrouter.clone();
+        let xkb = state.xkb.clone();
 
         // SAFETY: `Backend::display_ptr()` returns a live `wl_display *`
         // for the connection's lifetime.
@@ -103,6 +122,8 @@ impl Display {
             xdg_shell,
             wtz_shell,
             tz_policy,
+            tz_keyrouter,
+            xkb,
             tbm_client: TbmClientHandle { ptr: tbm_ptr },
         })
     }
@@ -124,6 +145,19 @@ impl Display {
     /// queue remain, which is all the event loop needs to dispatch.
     pub(crate) fn into_parts(self) -> (Connection, EventQueue<WindowState>) {
         (self.conn, self.queue)
+    }
+
+    /// Resolve an X11 keysym name (`"Left"`, `"XF86Back"`, etc.) into
+    /// the runtime keycode(s) the compositor delivers for it via
+    /// `wl_keyboard.key`. Used by app frameworks to recognise keys
+    /// without baking compositor-specific keycode constants into the
+    /// app. Returns an empty vec if the XKB keymap hasn't been
+    /// received yet, or if the name doesn't appear in this keymap.
+    pub fn keycodes_for_name(&self, name: &str) -> Vec<u32> {
+        match &self.xkb {
+            Some(xkb) => xkb.keycodes_for_name(name),
+            None => Vec::new(),
+        }
     }
 
     /// Force a roundtrip — useful right after creating the window to
@@ -226,6 +260,14 @@ impl Dispatch<wl_registry::WlRegistry, ()> for WindowState {
                 state.tz_policy =
                     Some(registry.bind::<TizenPolicy, _, _>(name, version.min(8), qh, ()));
             }
+            "tizen_keyrouter" => {
+                // On Tizen TVs, IR-remote keys (LRUD, OK, BACK, …) are
+                // routed through `tizen_keyrouter`, not plain
+                // `wl_keyboard`. Apps that want those keys must
+                // `set_keygrab` for each one.
+                state.tz_keyrouter =
+                    Some(registry.bind::<TizenKeyrouter, _, _>(name, version.min(2), qh, ()));
+            }
             "wl_seat" => {
                 state.seat = Some(registry.bind::<WlSeat, _, _>(name, version.min(7), qh, ()));
             }
@@ -326,11 +368,13 @@ impl Dispatch<WlPointer, ()> for WindowState {
     }
 }
 
-// Raw keycodes via wl_keyboard. We don't ship xkbcommon yet, so the
-// `keymap` event is consumed-and-dropped (closing the fd) and the
-// `modifiers` event is ignored — `Event::KeyboardInput` always
-// surfaces `modifiers: ModifiersState::empty()` until a future
-// xkbcommon pass translates mod indices.
+// Raw keycodes via wl_keyboard. The `keymap` event delivers an
+// XKB_v1 keymap which we parse via `crate::xkb::XkbState` so we can
+// translate key NAMES → keycodes for `tizen_keyrouter.set_keygrab`
+// (matching tizen-core-wl's pattern). The `modifiers` event is
+// still ignored — `Event::KeyboardInput` always surfaces
+// `modifiers: ModifiersState::empty()` until a future xkbcommon pass
+// translates mod indices.
 impl Dispatch<WlKeyboard, ()> for WindowState {
     fn event(
         state: &mut Self,
@@ -340,8 +384,16 @@ impl Dispatch<WlKeyboard, ()> for WindowState {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        use wayland_client::protocol::wl_keyboard::{Event, KeyState};
+        use wayland_client::protocol::wl_keyboard::{Event, KeyState, KeymapFormat};
         match event {
+            Event::Keymap { format, fd, size } => {
+                // Only XKB_v1 is sane; older `no_keymap` clients see
+                // the `fd` as `-1` which `OwnedFd` would refuse.
+                if matches!(format, WEnum::Value(KeymapFormat::XkbV1)) {
+                    state.xkb = crate::xkb::XkbState::from_keymap_fd(fd, size)
+                        .map(std::sync::Arc::new);
+                }
+            }
             Event::Enter { .. } => state.pending_events.push(crate::Event::Focused(true)),
             Event::Leave { .. } => state.pending_events.push(crate::Event::Focused(false)),
             Event::Key {

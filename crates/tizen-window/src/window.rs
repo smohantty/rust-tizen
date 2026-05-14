@@ -7,6 +7,7 @@ use raw_window_handle::{
 };
 use tizen_tbm_sys::tbm;
 use tizen_tbm_sys::wayland_tbm;
+use tizen_window_sys::tizen_extension::tizen_keyrouter::TizenKeyrouter;
 use tizen_window_sys::tizen_extension::tizen_policy::TizenPolicy;
 use tizen_window_sys::wtz_shell::{wtz_shell::WtzShell, wtz_surface::WtzSurface};
 use tizen_window_sys::xdg_shell_v6::{
@@ -20,6 +21,119 @@ use wayland_client::{Connection, Dispatch, Proxy, QueueHandle};
 
 use crate::display::{adopt_wl_buffer, Display};
 use crate::error::{Error, Result};
+
+/// X11 keysym names for IR-remote keys on Tizen TVs. Pass these to
+/// [`WindowBuilder::grab_keys`]; `tizen-window` resolves them to the
+/// runtime keycodes via the XKB keymap delivered by
+/// `wl_keyboard.keymap`. This matches the upstream
+/// `tizen_core_wl_keygrab.c` pattern (`xkb_keysym_from_name` then
+/// iterate the keymap).
+pub mod keys {
+    /// Remote left arrow.
+    pub const LEFT: &str = "Left";
+    /// Remote right arrow.
+    pub const RIGHT: &str = "Right";
+    /// Remote up arrow.
+    pub const UP: &str = "Up";
+    /// Remote down arrow.
+    pub const DOWN: &str = "Down";
+    /// Remote "OK" / "Enter".
+    pub const ENTER: &str = "Return";
+    /// Numeric-pad Enter.
+    pub const KP_ENTER: &str = "KP_Enter";
+    /// Remote "Back".
+    pub const BACK: &str = "XF86Back";
+    /// Keyboard "Escape" (sometimes mapped to the same physical key as
+    /// [`BACK`] on Tizen TV remotes).
+    pub const ESCAPE: &str = "Escape";
+    /// Tab.
+    pub const TAB: &str = "Tab";
+    /// Backspace.
+    pub const BACKSPACE: &str = "BackSpace";
+    /// Space.
+    pub const SPACE: &str = "space";
+    /// Home.
+    pub const HOME: &str = "Home";
+    /// End.
+    pub const END: &str = "End";
+    /// Page Up.
+    pub const PAGE_UP: &str = "Page_Up";
+    /// Page Down.
+    pub const PAGE_DOWN: &str = "Page_Down";
+    /// Delete.
+    pub const DELETE: &str = "Delete";
+    /// Insert.
+    pub const INSERT: &str = "Insert";
+}
+
+/// Grab mode passed to `tizen_keyrouter.set_keygrab`. Picks how the
+/// compositor decides who receives a key when multiple clients have
+/// asked for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum KeyGrabMode {
+    /// Delivered alongside the focused client. Multiple clients can
+    /// share the same key.
+    Shared,
+    /// Delivered when the requesting client is topmost. Good default
+    /// for foreground apps.
+    #[default]
+    Topmost,
+    /// Delivered exclusively, but lower-priority requesters can
+    /// preempt.
+    OverridableExclusive,
+    /// Delivered exclusively to the requester regardless of focus or
+    /// z-order. Right choice for passive overlays that still need to
+    /// receive a Back press while the launcher keeps focus.
+    Exclusive,
+    /// Delivered only when the requesting surface is on top among the
+    /// set of surfaces that have registered for the key.
+    Registered,
+}
+
+impl KeyGrabMode {
+    fn as_u32(self) -> u32 {
+        match self {
+            Self::Shared => 1,
+            Self::Topmost => 2,
+            Self::OverridableExclusive => 3,
+            Self::Exclusive => 4,
+            Self::Registered => 5,
+        }
+    }
+}
+
+/// A `(name, mode)` pair for [`WindowBuilder::grab_keys`].
+///
+/// The X11 keysym name (e.g. `"Left"`, `"XF86Back"`) is resolved at
+/// build time against the XKB keymap the compositor delivers — so
+/// the same code works regardless of how the underlying keymap
+/// assigns keycodes.
+#[derive(Debug, Clone)]
+pub struct KeyGrab {
+    /// X11 keysym name. Use the constants in [`keys`] for common TV
+    /// remote keys.
+    pub name: &'static str,
+    /// How to grab it (see [`KeyGrabMode`]).
+    pub mode: KeyGrabMode,
+}
+
+impl KeyGrab {
+    /// Convenience: grab `name` in [`KeyGrabMode::Topmost`].
+    pub fn topmost(name: &'static str) -> Self {
+        Self {
+            name,
+            mode: KeyGrabMode::Topmost,
+        }
+    }
+
+    /// Convenience: grab `name` in [`KeyGrabMode::Exclusive`].
+    pub fn exclusive(name: &'static str) -> Self {
+        Self {
+            name,
+            mode: KeyGrabMode::Exclusive,
+        }
+    }
+}
 
 /// Tizen window type, applied via `tizen_policy.set_type`. The choice
 /// affects z-order, focus policy, and on some Tizen compositors whether
@@ -93,6 +207,8 @@ pub struct WindowBuilder {
     height: Option<u32>,
     window_type: WindowType,
     transparent: bool,
+    focus_skip: bool,
+    grab_keys: Vec<KeyGrab>,
 }
 
 impl WindowBuilder {
@@ -140,6 +256,27 @@ impl WindowBuilder {
     /// is treated as opaque and rendered as solid black where alpha=0.
     pub fn transparent(mut self, transparent: bool) -> Self {
         self.transparent = transparent;
+        self
+    }
+
+    /// Ask the compositor not to give this surface keyboard focus
+    /// (`tizen_policy.set_focus_skip`). Right for passive overlays
+    /// (notifications, HUDs) that should sit on top of the launcher
+    /// without taking its input — without this, the floating surface
+    /// silently grabs focus from whatever's behind it and the user
+    /// loses remote control of the launcher.
+    pub fn focus_skip(mut self, focus_skip: bool) -> Self {
+        self.focus_skip = focus_skip;
+        self
+    }
+
+    /// Register a [`KeyGrab`] list with `tizen_keyrouter` after the
+    /// surface is created. On Tizen TVs, IR-remote keys (LRUD, OK,
+    /// Back, …) are routed by the keyrouter — apps that don't grab
+    /// them silently drop those keys even when focused. Use the
+    /// constants in [`keys`] for common remote keycodes.
+    pub fn grab_keys(mut self, list: impl IntoIterator<Item = KeyGrab>) -> Self {
+        self.grab_keys = list.into_iter().collect();
         self
     }
 
@@ -209,6 +346,29 @@ impl WindowBuilder {
             tp.set_type(&surface, self.window_type.as_u32());
             tp.show(&surface);
             tp.raise(&surface);
+            if self.focus_skip {
+                tp.set_focus_skip(&surface);
+            }
+        }
+
+        // Register IR-remote keys with `tizen_keyrouter`. Without this,
+        // arrow keys / OK / Back from the remote are dropped even when
+        // the window is focused. Passive overlays with `focus_skip`
+        // should grab in `Exclusive` mode to receive keys (Back in
+        // particular) regardless of where focus actually sits.
+        if let (Some(kr), Some(xkb)) = (&display.tz_keyrouter, &display.xkb) {
+            for grab in &self.grab_keys {
+                let keycodes = xkb.keycodes_for_name(grab.name);
+                if keycodes.is_empty() {
+                    // The name didn't resolve in this keymap (e.g. a
+                    // remote without that key). Skip silently rather
+                    // than failing the whole window build.
+                    continue;
+                }
+                for kc in keycodes {
+                    kr.set_keygrab(Some(&surface), kc, grab.mode.as_u32());
+                }
+            }
         }
 
         Ok(Window {
@@ -427,6 +587,7 @@ pub(crate) struct WindowState {
     pub(crate) xdg_shell: Option<ZxdgShellV6>,
     pub(crate) wtz_shell: Option<WtzShell>,
     pub(crate) tz_policy: Option<TizenPolicy>,
+    pub(crate) tz_keyrouter: Option<TizenKeyrouter>,
     pub(crate) seat: Option<WlSeat>,
     /// Bound lazily when the seat advertises the `pointer` capability.
     /// Held for the duration of the queue — dropped via the
@@ -435,6 +596,13 @@ pub(crate) struct WindowState {
     /// Bound lazily when the seat advertises the `keyboard` capability.
     /// Same lifecycle as [`Self::pointer`].
     pub(crate) keyboard: Option<WlKeyboard>,
+    /// XKB keymap parsed from the compositor's `wl_keyboard.keymap`
+    /// event. Used by [`WindowBuilder::build`] to resolve key names
+    /// (`"Left"`, `"XF86Back"`, …) into the runtime keycodes
+    /// `tizen_keyrouter.set_keygrab` requires. Shared via `Arc` so
+    /// `Display` and each `Window`'s state can both hold a
+    /// reference.
+    pub(crate) xkb: Option<std::sync::Arc<crate::xkb::XkbState>>,
 
     // Window-level state.
     pub(crate) width: u32,
@@ -629,6 +797,22 @@ impl Dispatch<TizenPolicy, ()> for WindowState {
         // tizen_policy emits notifications for conformant area changes,
         // notification-window done, etc. None of those are relevant to
         // making a basic window visible — silently ignore.
+    }
+}
+
+impl Dispatch<TizenKeyrouter, ()> for WindowState {
+    fn event(
+        _: &mut Self,
+        _: &TizenKeyrouter,
+        _: <TizenKeyrouter as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        // The keyrouter only sends `keygrab_notify` events confirming
+        // the success/failure of `set_keygrab` calls. We log nothing
+        // and discover failures via "the key never arrived" — good
+        // enough for the MVP.
     }
 }
 

@@ -42,12 +42,13 @@ mod error;
 mod event;
 mod event_loop;
 mod window;
+mod xkb;
 
 pub use display::Display;
 pub use error::{Error, Result};
 pub use event::{Event, ModifiersState, MouseButton};
 pub use event_loop::EventLoop;
-pub use window::{Window, WindowBuilder, WindowType};
+pub use window::{keys, KeyGrab, KeyGrabMode, Window, WindowBuilder, WindowType};
 
 // Re-export `raw-window-handle` so downstream apps can take the trait
 // without an extra `Cargo.toml` line.

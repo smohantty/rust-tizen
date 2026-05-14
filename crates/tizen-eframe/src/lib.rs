@@ -22,7 +22,7 @@ use glow::HasContext;
 use khronos_egl as egl;
 use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 use tizen_egl::EglWindow;
-pub use tizen_window::WindowType;
+pub use tizen_window::{keys, KeyGrab, KeyGrabMode, WindowType};
 use tizen_window::{Display, Event, EventLoop, ModifiersState, MouseButton, Window, WindowBuilder};
 
 /// Re-export of the egui crate used by this integration.
@@ -170,6 +170,24 @@ pub struct NativeOptions {
     /// launcher / underlying app showing through the cleared regions.
     /// Defaults to `false`.
     pub transparent: bool,
+    /// Ask the compositor not to take keyboard focus
+    /// (`tizen_policy.set_focus_skip`). Right for passive overlays
+    /// (notifications, chat tickers) that should sit on top of the
+    /// launcher without stealing its remote-control input. Defaults
+    /// to `false`.
+    pub focus_skip: bool,
+    /// IR-remote keycodes to grab via `tizen_keyrouter`. Without a
+    /// grab, the keyrouter silently drops these keys even when this
+    /// window is focused. Use the constants in [`keys`] for common
+    /// TV remote codes. Defaults to empty.
+    pub grab_keys: Vec<KeyGrab>,
+    /// Automatically grab the Back key and call
+    /// [`tizen_window::Window::set_should_close`] when it is pressed.
+    /// Mode is auto-selected: [`KeyGrabMode::Topmost`] when the
+    /// window can take focus, [`KeyGrabMode::Exclusive`] when
+    /// [`Self::focus_skip`] is set so the overlay still exits on
+    /// Back while the launcher keeps focus. Defaults to `true`.
+    pub close_on_back: bool,
 }
 
 impl Default for NativeOptions {
@@ -183,6 +201,9 @@ impl Default for NativeOptions {
             continuous_repaint: false,
             window_type: WindowType::default(),
             transparent: false,
+            focus_skip: false,
+            grab_keys: Vec::new(),
+            close_on_back: true,
         }
     }
 }
@@ -239,13 +260,43 @@ pub fn run_native(
     }
 
     let egui_options = TizenEguiOptions::from(&options);
+
+    // Compose the keygrab list. The app's explicit `grab_keys` plus, if
+    // `close_on_back`, an implicit Back grab so this exit path is
+    // wired up by default. Mode for Back is auto-picked: Topmost when
+    // the window can take focus, Exclusive when `focus_skip` is set
+    // (so a launcher-keeps-focus overlay still exits on Back).
+    let mut grab_keys: Vec<KeyGrab> = options.grab_keys.clone();
+    if options.close_on_back && !grab_keys.iter().any(|g| g.name == keys::BACK) {
+        let mode = if options.focus_skip {
+            KeyGrabMode::Exclusive
+        } else {
+            KeyGrabMode::Topmost
+        };
+        grab_keys.push(KeyGrab {
+            name: keys::BACK,
+            mode,
+        });
+    }
+
     let mut display = Display::connect()?;
+    // Resolve the BACK / ESCAPE names ahead of time so the
+    // close_on_back loop can compare against raw keycodes without
+    // doing an XKB lookup per key event.
+    let back_keycodes: Vec<u32> = display
+        .keycodes_for_name(keys::BACK)
+        .into_iter()
+        .chain(display.keycodes_for_name(keys::ESCAPE))
+        .collect();
+
     let mut window = WindowBuilder::new()
         .title(options.title.clone())
         .app_id(options.app_id.clone())
         .size(options.size.0, options.size.1)
         .window_type(options.window_type)
         .transparent(options.transparent)
+        .focus_skip(options.focus_skip)
+        .grab_keys(grab_keys)
         .build(&display)?;
 
     display.roundtrip(&mut window)?;
@@ -276,9 +327,27 @@ pub fn run_native(
     // compositor-initiated close.
     let event_loop = EventLoop::new(display)?;
     let continuous_repaint = options.continuous_repaint;
+    let close_on_back = options.close_on_back;
     let mut window = event_loop.run(window, |window: &mut Window| -> Result<()> {
         let pending: Vec<Event> = window.drain_events().collect();
         for event in pending {
+            // `close_on_back`: a remote-Back / keyboard-Escape press
+            // trips the same shutdown path as Ctrl-C / a compositor
+            // close. We pre-resolved the keycodes via the XKB keymap
+            // at startup so this check is just a small slice contains.
+            if close_on_back {
+                if let Event::KeyboardInput {
+                    keycode,
+                    pressed: true,
+                    ..
+                } = event
+                {
+                    if back_keycodes.contains(&keycode) {
+                        window.set_should_close();
+                    }
+                }
+            }
+
             let input_changed = egui.handle_event(&event);
 
             match event {

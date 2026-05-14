@@ -12,6 +12,11 @@ fn main() -> eframe::Result<()> {
         // launcher/toplevel below, blending RGBA pixels through.
         window_type: WindowType::Floating,
         transparent: true,
+        // Passive overlay: leave focus on the launcher so its remote
+        // navigation keeps working. `close_on_back` still wires Back
+        // to exit — picking Exclusive grab mode automatically so the
+        // overlay receives Back even without focus.
+        focus_skip: true,
         ..Default::default()
     };
     eframe::run_native(
