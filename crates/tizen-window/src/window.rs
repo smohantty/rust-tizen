@@ -379,6 +379,17 @@ impl WindowBuilder {
                 configured: false,
                 should_close: false,
                 pixel: 0xFF1E40AFu32,
+                // Inherit input proxies + XKB keymap from the display.
+                // The proxies were bound in `Display::connect` and
+                // moved into `Display` so they outlive the local
+                // state used during connect. Cloning them here keeps
+                // the bindings live and lets wayland-client dispatch
+                // future key/pointer events into THIS state — where
+                // our Dispatch impls are.
+                seat: display.seat.clone(),
+                keyboard: display.keyboard.clone(),
+                pointer: display.pointer.clone(),
+                xkb: display.xkb.clone(),
                 ..Default::default()
             },
             surface,

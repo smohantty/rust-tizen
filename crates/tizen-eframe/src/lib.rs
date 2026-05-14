@@ -283,10 +283,18 @@ pub fn run_native(
     // Resolve the BACK / ESCAPE names ahead of time so the
     // close_on_back loop can compare against raw keycodes without
     // doing an XKB lookup per key event.
+    //
+    // XKB keymaps use X11 keycodes (= Linux evdev + 8) for
+    // historical reasons. `wl_keyboard.key.key`, by contrast,
+    // delivers the raw kernel scancode (evdev). So to compare
+    // resolved keysym keycodes against incoming wl events we
+    // subtract 8 — see the comment block in
+    // <https://wayland.app/protocols/wayland#wl_keyboard:event:key>.
     let back_keycodes: Vec<u32> = display
         .keycodes_for_name(keys::BACK)
         .into_iter()
         .chain(display.keycodes_for_name(keys::ESCAPE))
+        .map(|x11_keycode| x11_keycode.saturating_sub(8))
         .collect();
 
     let mut window = WindowBuilder::new()
@@ -336,9 +344,13 @@ pub fn run_native(
             // close. We pre-resolved the keycodes via the XKB keymap
             // at startup so this check is just a small slice contains.
             if close_on_back {
+                // Fire on RELEASE, not press — matches the standard
+                // TV / desktop UX where clicks / activations commit
+                // when the key is let go (and prevents key-repeat
+                // from firing multiple close requests).
                 if let Event::KeyboardInput {
                     keycode,
-                    pressed: true,
+                    pressed: false,
                     ..
                 } = event
                 {
@@ -387,8 +399,29 @@ pub fn run_native(
     let _ = &mut window;
 
     app.on_exit();
-    egui.destroy();
-    Ok(())
+
+    // We deliberately skip the synchronous Drop chain for `egui`
+    // (TizenEguiGlow → EglState → EglWindow) and `window`
+    // (WlSurface / xdg_toplevel proxies). On Tizen TV the Mesa
+    // wayland-egl driver inside `eglDestroySurface` / `eglTerminate`
+    // blocks waiting for `wl_buffer.release` events from the
+    // compositor — but our wayland event queue lived inside the
+    // `calloop` `EventLoop` that just exited, so nothing can service
+    // those events any more and the process hangs forever in
+    // `D (disk sleep)` state, unkillable until reboot.
+    //
+    // `std::process::exit(0)` short-circuits: the kernel closes our
+    // wayland socket, the compositor observes a hard client
+    // disconnect and tears down its side, and we exit immediately.
+    // Standard mitigation pattern for Wayland-EGL clients whose
+    // event-loop teardown can't keep dispatching during native
+    // shutdown.
+    //
+    // A more graceful "post the teardown back into the event loop"
+    // approach (mirroring winit's pattern, where the renderer
+    // crate's EGL drops run while wayland dispatch is still alive)
+    // is left as a future refactor — TODO.
+    std::process::exit(0);
 }
 
 /// Options for constructing [`TizenEguiGlow`] directly.
@@ -700,10 +733,19 @@ impl EglState {
 
 impl Drop for EglState {
     fn drop(&mut self) {
+        // `run_native` short-circuits via `process::exit(0)` before
+        // dropping us — see the rationale block there. The body below
+        // therefore runs only for direct `TizenEguiGlow` users (i.e.
+        // someone using the low-level adapter without `run_native`),
+        // and intentionally skips the calls that hang on Tizen TV:
+        //   - `eglDestroySurface` blocks waiting for compositor
+        //     `wl_buffer.release` events,
+        //   - `eglTerminate` likewise blocks.
+        // Both are released by the OS at process exit, matching
+        // glutin's documented design choice for skipping
+        // `eglTerminate` on drop (see `glutin/src/api/egl/display.rs`).
         let _ = self.lib.make_current(self.display, None, None, None);
-        let _ = self.lib.destroy_surface(self.display, self.surface);
         let _ = self.lib.destroy_context(self.display, self.context);
-        let _ = self.lib.terminate(self.display);
     }
 }
 

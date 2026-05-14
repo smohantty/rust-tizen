@@ -35,6 +35,15 @@ pub struct Display {
     pub(crate) tz_policy: Option<TizenPolicy>,
     pub(crate) tz_keyrouter: Option<TizenKeyrouter>,
     pub(crate) xkb: Option<std::sync::Arc<crate::xkb::XkbState>>,
+    // Seat + input device proxies bound during `connect`. Kept alive
+    // here (instead of in the local `WindowState`) so they survive
+    // past the function's stack frame — otherwise the compositor
+    // releases them when the local state drops and we stop receiving
+    // key/pointer events. `Window` clones these into its own state
+    // in `WindowBuilder::build`, so dispatch picks them up.
+    pub(crate) seat: Option<wayland_client::protocol::wl_seat::WlSeat>,
+    pub(crate) keyboard: Option<wayland_client::protocol::wl_keyboard::WlKeyboard>,
+    pub(crate) pointer: Option<wayland_client::protocol::wl_pointer::WlPointer>,
     pub(crate) tbm_client: TbmClientHandle,
 }
 
@@ -104,6 +113,16 @@ impl Display {
         let tz_policy = state.tz_policy.clone();
         let tz_keyrouter = state.tz_keyrouter.clone();
         let xkb = state.xkb.clone();
+        // Seat + keyboard + pointer were bound on the local `state`
+        // during the roundtrips. Move them into `Display` so they
+        // outlive this function — otherwise the local state drops at
+        // the end of `connect`, the proxies' destructors fire, and
+        // the compositor releases them. With them held here, the
+        // bindings stay live for the life of the connection; the new
+        // `Window`'s state inherits clones in `WindowBuilder::build`.
+        let seat = state.seat.take();
+        let keyboard = state.keyboard.take();
+        let pointer = state.pointer.take();
 
         // SAFETY: `Backend::display_ptr()` returns a live `wl_display *`
         // for the connection's lifetime.
@@ -124,6 +143,9 @@ impl Display {
             tz_policy,
             tz_keyrouter,
             xkb,
+            seat,
+            keyboard,
+            pointer,
             tbm_client: TbmClientHandle { ptr: tbm_ptr },
         })
     }
