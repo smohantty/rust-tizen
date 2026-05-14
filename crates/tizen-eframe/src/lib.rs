@@ -23,7 +23,7 @@ use khronos_egl as egl;
 use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 use tizen_egl::EglWindow;
 pub use tizen_window::WindowType;
-use tizen_window::{Display, Event, ModifiersState, MouseButton, Window, WindowBuilder};
+use tizen_window::{Display, Event, EventLoop, ModifiersState, MouseButton, Window, WindowBuilder};
 
 /// Re-export of the egui crate used by this integration.
 pub use egui;
@@ -268,7 +268,15 @@ pub fn run_native(
     let mut frame_nr = 0_u64;
     window.request_redraw();
 
-    while !window.should_close() {
+    // Calloop-based event loop. Consumes `display` (its wayland
+    // connection + event queue are moved into the loop). Wayland
+    // events drive `pending_events` on the window's state; SIGINT and
+    // SIGTERM trip `should_close` via a calloop signal source so
+    // Ctrl-C exits cleanly through the same shutdown path as a
+    // compositor-initiated close.
+    let event_loop = EventLoop::new(display)?;
+    let continuous_repaint = options.continuous_repaint;
+    let mut window = event_loop.run(window, |window: &mut Window| -> Result<()> {
         let pending: Vec<Event> = window.drain_events().collect();
         for event in pending {
             let input_changed = egui.handle_event(&event);
@@ -288,12 +296,12 @@ pub fn run_native(
                         size: window.size(),
                         repaint_requested: false,
                     };
-                    let paint_result = egui.run_and_paint(&window, |ctx| {
+                    let paint_result = egui.run_and_paint(window, |ctx| {
                         app.update(ctx, &mut frame);
                     })?;
                     frame_nr += 1;
 
-                    if options.continuous_repaint
+                    if continuous_repaint
                         || frame.repaint_requested
                         || paint_result.repaint_requested
                     {
@@ -305,13 +313,9 @@ pub fn run_native(
                 _ => {}
             }
         }
-
-        if window.should_close() {
-            break;
-        }
-
-        display.dispatch_pending(&mut window)?;
-    }
+        Ok(())
+    })?;
+    let _ = &mut window;
 
     app.on_exit();
     egui.destroy();

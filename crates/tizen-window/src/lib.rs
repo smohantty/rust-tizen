@@ -40,11 +40,13 @@
 mod display;
 mod error;
 mod event;
+mod event_loop;
 mod window;
 
 pub use display::Display;
 pub use error::{Error, Result};
 pub use event::{Event, ModifiersState, MouseButton};
+pub use event_loop::EventLoop;
 pub use window::{Window, WindowBuilder, WindowType};
 
 // Re-export `raw-window-handle` so downstream apps can take the trait

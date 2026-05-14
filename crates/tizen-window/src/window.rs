@@ -265,6 +265,21 @@ impl Window {
         self.state.should_close
     }
 
+    /// Externally request the event loop to exit on the next iteration.
+    /// Set from the signal source in [`crate::EventLoop`] when SIGINT
+    /// or SIGTERM arrives, and available to apps that want to exit
+    /// programmatically (e.g. from a "Quit" menu item).
+    pub fn set_should_close(&mut self) {
+        self.state.should_close = true;
+    }
+
+    /// Mutable access to the internal [`WindowState`] used as the
+    /// wayland-dispatch target. Used by [`crate::EventLoop`] to drive
+    /// the calloop dispatch.
+    pub(crate) fn state_mut(&mut self) -> &mut WindowState {
+        &mut self.state
+    }
+
     /// Schedule a redraw at the compositor's next available frame
     /// (one-shot — call again from the redraw handler to keep
     /// looping). Registers a `wl_surface.frame` callback; the

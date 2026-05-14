@@ -116,6 +116,16 @@ impl Display {
         Ok(())
     }
 
+    /// Consume this `Display` and return the underlying wayland
+    /// connection and event queue. Used by
+    /// [`crate::EventLoop::new`] to hand both off to
+    /// `calloop_wayland_source::WaylandSource`. After this call the
+    /// shell/policy/tbm globals are dropped — only the connection +
+    /// queue remain, which is all the event loop needs to dispatch.
+    pub(crate) fn into_parts(self) -> (Connection, EventQueue<WindowState>) {
+        (self.conn, self.queue)
+    }
+
     /// Force a roundtrip — useful right after creating the window to
     /// receive the initial `configure`.
     pub fn roundtrip(&mut self, window: &mut crate::Window) -> Result<()> {

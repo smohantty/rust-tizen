@@ -22,6 +22,16 @@ wayland-backend  = { workspace = true, features = ["client_system", "dlopen"] }
 # without us having to take a dep on any specific UI framework.
 raw-window-handle = "0.6"
 bitflags          = { workspace = true }
+# Standard Rust wayland event loop (used by winit on Linux). Gives us
+# integrated wayland-fd polling + signal handling + future timer/IPC
+# sources without rolling our own poll() loop.
+calloop          = { version = "0.14", features = ["signals"] }
+calloop-wayland-source = "0.4"
+# Used to reset inherited SIG_IGN dispositions for SIGINT/SIGTERM
+# before installing the signalfd handler; required because shell job
+# control (`cmd &`) sets these to SIG_IGN, causing the kernel to drop
+# them before signalfd can read them.
+libc             = "0.2"
 
 [lints]
 workspace = true
