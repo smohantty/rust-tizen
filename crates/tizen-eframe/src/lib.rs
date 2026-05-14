@@ -22,6 +22,7 @@ use glow::HasContext;
 use khronos_egl as egl;
 use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 use tizen_egl::EglWindow;
+pub use tizen_window::WindowType;
 use tizen_window::{Display, Event, ModifiersState, MouseButton, Window, WindowBuilder};
 
 /// Re-export of the egui crate used by this integration.
@@ -158,6 +159,17 @@ pub struct NativeOptions {
     /// apps can keep this false and call `ctx.request_repaint()` or
     /// [`Frame::request_repaint`] when needed.
     pub continuous_repaint: bool,
+    /// Tizen-policy window type. Use [`WindowType::Floating`] for
+    /// chat/HUD/overlay apps — that's the dedicated Tizen request for
+    /// a partial-window surface that can position over other
+    /// toplevels. Defaults to [`WindowType::Toplevel`] (fullscreen).
+    pub window_type: WindowType,
+    /// Mark the surface as alpha-blended via
+    /// `wl_surface.set_opaque_region(NULL)`. Pair with a
+    /// transparent-looking `clear_color` (alpha = 0) to get the
+    /// launcher / underlying app showing through the cleared regions.
+    /// Defaults to `false`.
+    pub transparent: bool,
 }
 
 impl Default for NativeOptions {
@@ -169,6 +181,8 @@ impl Default for NativeOptions {
             pixels_per_point: 1.0,
             clear_color: [0.05, 0.05, 0.08, 1.0],
             continuous_repaint: false,
+            window_type: WindowType::default(),
+            transparent: false,
         }
     }
 }
@@ -230,6 +244,8 @@ pub fn run_native(
         .title(options.title.clone())
         .app_id(options.app_id.clone())
         .size(options.size.0, options.size.1)
+        .window_type(options.window_type)
+        .transparent(options.transparent)
         .build(&display)?;
 
     display.roundtrip(&mut window)?;
@@ -625,6 +641,12 @@ fn choose_config(
     // Request an alpha channel so apps that paint with transparent pixels
     // (e.g. `clear_color = [_, _, _, 0.0]`) get a real alpha-blended
     // surface that the compositor can composite over what's beneath.
+    //
+    // `eglChooseConfig`'s sort order prefers smaller total color-buffer
+    // bits, which on some drivers means an XRGB (alpha=0) config wins
+    // over an ARGB (alpha=8) one even when we request ALPHA_SIZE=8.
+    // So we enumerate the matching configs and pick the first with
+    // ALPHA_SIZE >= 8 ourselves.
     let attrs = [
         egl::SURFACE_TYPE,
         egl::WINDOW_BIT,
@@ -645,8 +667,14 @@ fn choose_config(
         egl::NONE,
     ];
 
-    lib.choose_first_config(display, &attrs)?
-        .ok_or(Error::NoEglConfig)
+    let mut configs: Vec<egl::Config> = Vec::with_capacity(32);
+    lib.choose_config(display, &attrs, &mut configs)?;
+    for cfg in &configs {
+        if lib.get_config_attrib(display, *cfg, egl::ALPHA_SIZE)? >= 8 {
+            return Ok(*cfg);
+        }
+    }
+    Err(Error::NoEglConfig)
 }
 
 fn create_context(

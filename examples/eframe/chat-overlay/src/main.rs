@@ -1,4 +1,4 @@
-use eframe::egui;
+use eframe::{egui, WindowType};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -6,8 +6,12 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         title: "egui Chat Overlay Demo".to_owned(),
         app_id: "rust.tizen.chat-overlay".to_owned(),
-        size: (1920, 1080),
+        size: (520, 900),
         continuous_repaint: true,
+        // Floating + transparent = partial overlay that sits over the
+        // launcher/toplevel below, blending RGBA pixels through.
+        window_type: WindowType::Floating,
+        transparent: true,
         ..Default::default()
     };
     eframe::run_native(
@@ -133,10 +137,8 @@ impl eframe::App for ChatApp {
             ..Default::default()
         };
 
-        egui::SidePanel::right("chat")
+        egui::CentralPanel::default()
             .frame(panel_frame)
-            .resizable(false)
-            .exact_width(500.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());

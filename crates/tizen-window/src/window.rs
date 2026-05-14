@@ -21,6 +21,69 @@ use wayland_client::{Connection, Dispatch, Proxy, QueueHandle};
 use crate::display::{adopt_wl_buffer, Display};
 use crate::error::{Error, Result};
 
+/// Tizen window type, applied via `tizen_policy.set_type`. The choice
+/// affects z-order, focus policy, and on some Tizen compositors whether
+/// the surface is forced fullscreen or allowed to remain at its
+/// requested size with alpha blending.
+///
+/// Values mirror the `win_type` enum from `tizen-extension.xml`.
+/// `Toplevel` is the default and matches a normal application window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WindowType {
+    /// Normal application window (default). Tizen compositors typically
+    /// force this fullscreen and treat it as opaque.
+    #[default]
+    Toplevel,
+    /// **Floating** — a partial window that can position over other
+    /// top-level windows. This is the right choice for chat/HUD/overlay
+    /// apps that want a non-fullscreen surface. Implemented as
+    /// `tizen_policy.set_floating_mode` plus `set_type(NONE)`, matching
+    /// `tizen-core-wayland`'s `WINDOW_TYPE_FLOATING` mapping.
+    Floating,
+    /// Fullscreen state.
+    Fullscreen,
+    /// Maximized state.
+    Maximized,
+    /// Transient relation state.
+    Transient,
+    /// Menu.
+    Menu,
+    /// Custom (no policy enforced by the compositor).
+    Custom,
+    /// Notification — z-ordered above toplevels.
+    Notification,
+    /// Auxiliary "utility" window.
+    Utility,
+    /// Dialog.
+    Dialog,
+    /// Dock.
+    Dock,
+    /// Splash screen.
+    Splash,
+}
+
+impl WindowType {
+    fn as_u32(self) -> u32 {
+        // Values from `protocols/tizen-extension.xml` enum win_type.
+        // `Floating` maps to `NONE` (0) because it's set via the
+        // separate `set_floating_mode` request, not `set_type`.
+        match self {
+            Self::Floating => 0,
+            Self::Toplevel => 1,
+            Self::Fullscreen => 2,
+            Self::Maximized => 3,
+            Self::Transient => 4,
+            Self::Menu => 5,
+            Self::Custom => 7,
+            Self::Notification => 8,
+            Self::Utility => 9,
+            Self::Dialog => 10,
+            Self::Dock => 11,
+            Self::Splash => 12,
+        }
+    }
+}
+
 /// Builder for [`Window`]. Created via [`WindowBuilder::new`].
 #[derive(Debug, Clone, Default)]
 pub struct WindowBuilder {
@@ -28,6 +91,8 @@ pub struct WindowBuilder {
     app_id: Option<String>,
     width: Option<u32>,
     height: Option<u32>,
+    window_type: WindowType,
+    transparent: bool,
 }
 
 impl WindowBuilder {
@@ -58,6 +123,26 @@ impl WindowBuilder {
         self
     }
 
+    /// Tizen-policy [`WindowType`] applied via `tizen_policy.set_type`
+    /// (plus `set_floating_mode` for [`WindowType::Floating`]).
+    /// Affects z-order, focus, and on some compositors whether the
+    /// surface gets forced fullscreen.
+    /// Defaults to [`WindowType::Toplevel`].
+    pub fn window_type(mut self, window_type: WindowType) -> Self {
+        self.window_type = window_type;
+        self
+    }
+
+    /// Mark the surface as alpha-blended ("not opaque") via
+    /// `wl_surface.set_opaque_region(NULL)`. Required for the
+    /// compositor to actually composite RGBA pixels over what's
+    /// underneath — without it, even an EGL surface with ALPHA_SIZE=8
+    /// is treated as opaque and rendered as solid black where alpha=0.
+    pub fn transparent(mut self, transparent: bool) -> Self {
+        self.transparent = transparent;
+        self
+    }
+
     /// Create the window — sends all the protocol requests and
     /// returns once the surface is committed and ready to render.
     pub fn build(self, display: &Display) -> Result<Window> {
@@ -75,9 +160,56 @@ impl WindowBuilder {
 
         let wtz_surface = display.wtz_shell.get_wtz_surface(&surface, &qh, ());
 
+        // Mark the surface as alpha-blended before the first commit so
+        // the compositor honours RGBA pixels (without this, even an
+        // EGL surface with ALPHA_SIZE=8 is treated as opaque on Tizen).
+        // Mirrors `tizen_core_wl_window_set_alpha(window, true)` in
+        // `tizen-core-wayland/.../tizen_core_wl_surface.c:2181`.
+        if self.transparent {
+            surface.set_opaque_region(None);
+        }
+
         // First commit — required by xdg_shell before the compositor
         // will send the initial `configure` event.
         surface.commit();
+
+        // Tizen-specific visibility + type policy. Without these
+        // requests the compositor lays out our surface but keeps it
+        // BEHIND the launcher / system UI. `tizen_core_wl`'s
+        // `tizen_core_wl_window_show()` (tizen_core_wl_surface.c:2111)
+        // does:
+        //
+        //   tizen_policy.set_type(surface, win_type)
+        //   tizen_policy.show(surface)         // since v8
+        //
+        // For `Floating`, we additionally call `set_floating_mode`
+        // (mirroring `tizen_core_wl_window_set_type` in
+        // `tizen_core_wl_surface.c:1498` for `WINDOW_TYPE_FLOATING`)
+        // — this is the request that tells the compositor the
+        // surface is a partial window that can sit over toplevels
+        // rather than being forced fullscreen.
+        //
+        // We intentionally do NOT call `activate` here — `activate`
+        // grabs keyboard focus, and on a TV target that means the
+        // launcher's IR-remote events stop being delivered to the
+        // launcher and start going to us. If our process then dies
+        // (or doesn't handle keys), the remote becomes unresponsive
+        // until the compositor times out our focus or reboots.
+        // `raise` is included because it just bumps z-order — no
+        // focus side effect.
+        //
+        // Doing this in `build()` (after the empty xdg-shell commit but
+        // before any content buffer is attached) means both the TBM
+        // and EGL render paths get visibility set up identically — the
+        // EGL path never calls our internal `paint()`.
+        if let Some(tp) = &display.tz_policy {
+            if self.window_type == WindowType::Floating {
+                tp.set_floating_mode(&surface);
+            }
+            tp.set_type(&surface, self.window_type.as_u32());
+            tp.show(&surface);
+            tp.raise(&surface);
+        }
 
         Ok(Window {
             state: WindowState {
@@ -93,7 +225,6 @@ impl WindowBuilder {
             xdg_surface,
             xdg_toplevel,
             wtz_surface,
-            tz_policy: display.tz_policy.clone(),
             tbm_client_ptr: display.tbm_client.ptr,
             conn: display.conn.clone(),
             qh,
@@ -115,10 +246,6 @@ pub struct Window {
     pub(crate) xdg_toplevel: ZxdgToplevelV6,
     #[allow(dead_code)]
     pub(crate) wtz_surface: WtzSurface,
-    /// `tizen_policy` global, bound at display-connect time if the
-    /// compositor advertises it. Used to make the window visible
-    /// (`show` + `activate` + `raise`) and to set the window type.
-    pub(crate) tz_policy: Option<TizenPolicy>,
     pub(crate) tbm_client_ptr: *mut wayland_tbm::wayland_tbm_client,
     pub(crate) conn: Connection,
     /// Queue handle for this window's surface — needed to register
@@ -230,35 +357,9 @@ impl Window {
         self.surface.damage_buffer(0, 0, w, h);
         self.surface.commit();
 
-        // Tizen-specific visibility step. Without these requests the
-        // compositor lays out our surface but keeps it BEHIND the
-        // launcher / system UI. `tizen_core_wl`'s
-        // `tizen_core_wl_window_show()` (tizen_core_wl_surface.c:2111)
-        // does:
-        //
-        //   tizen_policy.set_type(surface, toplevel)
-        //   tizen_policy.show(surface)         // since v8
-        //
-        // We intentionally do NOT call `activate` here — `activate`
-        // grabs keyboard focus, and on a TV target that means the
-        // launcher's IR-remote events stop being delivered to the
-        // launcher and start going to us. If our process then dies
-        // (or doesn't handle keys), the remote becomes unresponsive
-        // until the compositor times out our focus or reboots.
-        // `raise` is included because it just bumps z-order — no
-        // focus side effect. Callers that want focus can opt in via
-        // a future explicit `activate()` method.
-        if let Some(tp) = &self.tz_policy {
-            if !self.state.policy_shown {
-                // Upstream `set_type` takes a plain `uint`; the `win_type`
-                // values are documented inline (1 = toplevel).
-                const WIN_TYPE_TOPLEVEL: u32 = 1;
-                tp.set_type(&self.surface, WIN_TYPE_TOPLEVEL);
-                tp.show(&self.surface);
-                tp.raise(&self.surface);
-                self.state.policy_shown = true;
-            }
-        }
+        // Visibility policy (`tz_policy.set_type/show/raise`) is applied
+        // once in `WindowBuilder::build` so both TBM and EGL render
+        // paths share it.
 
         // We deliberately leak the TBM surface + wl_buffer here: the
         // compositor still owns them until it sends `wl_buffer.release`.
@@ -333,9 +434,6 @@ pub(crate) struct WindowState {
     pub(crate) should_close: bool,
     /// BGRX value to paint on (re)configure.
     pub(crate) pixel: u32,
-    /// Set once we've fired the `tizen_policy.show/activate/raise`
-    /// trio post-paint. Idempotent on subsequent paints.
-    pub(crate) policy_shown: bool,
 
     /// True between a `Window::request_redraw()` call and the matching
     /// `wl_callback.done` event. Lets us skip duplicate frame
