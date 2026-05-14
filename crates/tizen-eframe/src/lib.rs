@@ -622,6 +622,9 @@ fn choose_config(
     lib: &egl::DynamicInstance<egl::EGL1_4>,
     display: egl::Display,
 ) -> Result<egl::Config> {
+    // Request an alpha channel so apps that paint with transparent pixels
+    // (e.g. `clear_color = [_, _, _, 0.0]`) get a real alpha-blended
+    // surface that the compositor can composite over what's beneath.
     let attrs = [
         egl::SURFACE_TYPE,
         egl::WINDOW_BIT,
@@ -632,7 +635,7 @@ fn choose_config(
         egl::BLUE_SIZE,
         8,
         egl::ALPHA_SIZE,
-        0,
+        8,
         egl::DEPTH_SIZE,
         0,
         egl::STENCIL_SIZE,
