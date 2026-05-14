@@ -467,8 +467,8 @@ version = "0.1.0"
 dependencies = [
  "tizen-app",
  "tizen-dlog",
+ "tizen-eframe",
  "tizen-egl",
- "tizen-egui",
  "tizen-input",
  "tizen-screenshot",
  "tizen-window",
@@ -502,6 +502,19 @@ name = "tizen-dlog-sys"
 version = "0.1.0"
 
 [[package]]
+name = "tizen-eframe"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "egui_glow",
+ "glow",
+ "khronos-egl",
+ "raw-window-handle",
+ "tizen-egl",
+ "tizen-window",
+]
+
+[[package]]
 name = "tizen-egl"
 version = "0.1.0"
 dependencies = [
@@ -514,19 +527,6 @@ name = "tizen-egl-sys"
 version = "0.1.0"
 dependencies = [
  "libloading",
-]
-
-[[package]]
-name = "tizen-egui"
-version = "0.1.0"
-dependencies = [
- "egui",
- "egui_glow",
- "glow",
- "khronos-egl",
- "raw-window-handle",
- "tizen-egl",
- "tizen-window",
 ]
 
 [[package]]

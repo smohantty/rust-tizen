@@ -14,7 +14,7 @@
 //! | `screenshot`| [`screenshot`]| [`tizen-screenshot`]     |
 //! | `window`    | [`window`]    | [`tizen-window`]         |
 //! | `egl`       | [`egl`]       | [`tizen-egl`]            |
-//! | `egui`      | [`egui`]      | [`tizen-egui`]           |
+//! | `eframe`    | [`eframe`]    | [`tizen-eframe`]         |
 //!
 //! [`tizen-dlog`]: https://crates.io/crates/tizen-dlog
 //! [`tizen-app`]: https://crates.io/crates/tizen-app
@@ -22,7 +22,7 @@
 //! [`tizen-screenshot`]: https://crates.io/crates/tizen-screenshot
 //! [`tizen-window`]: https://crates.io/crates/tizen-window
 //! [`tizen-egl`]: https://crates.io/crates/tizen-egl
-//! [`tizen-egui`]: https://crates.io/crates/tizen-egui
+//! [`tizen-eframe`]: https://crates.io/crates/tizen-eframe
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
@@ -62,7 +62,10 @@ pub use tizen_window as window;
 #[cfg_attr(docsrs, doc(cfg(feature = "egl")))]
 pub use tizen_egl as egl;
 
-/// egui integration for Tizen windows using EGL/GLES via `egui_glow`.
-#[cfg(feature = "egui")]
-#[cfg_attr(docsrs, doc(cfg(feature = "egui")))]
-pub use tizen_egui as egui;
+/// eframe-style runner for egui applications on Tizen (EGL/GLES via
+/// `egui_glow`). Convenience re-export of [`tizen_eframe`]; apps that
+/// only need this can also depend on `tizen-eframe` directly and
+/// package-rename it to `eframe` in their `Cargo.toml`.
+#[cfg(feature = "eframe")]
+#[cfg_attr(docsrs, doc(cfg(feature = "eframe")))]
+pub use tizen_eframe as eframe;

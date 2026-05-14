@@ -2,7 +2,6 @@
 //!
 //! Variant names and field shapes mirror `winit::event::WindowEvent`
 //! so anyone already familiar with winit needs zero new mental model.
-//! See `docs/egui-roadmap.md` for the design rule.
 
 // Field names inside the Event variants (width, height, x, y, pressed,
 // modifiers, …) mirror winit's and are self-explanatory; we don't

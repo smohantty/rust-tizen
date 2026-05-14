@@ -1,8 +1,14 @@
-//! egui integration for `rust-tizen` windows using EGL/GLES.
+//! eframe-style runner for egui applications on Tizen, backed by EGL/GLES.
 //!
 //! Implement [`App`] and pass it to [`run_native`] for the app-facing
 //! path. [`TizenEguiGlow`] is the lower-level adapter for callers that
 //! want to own the Tizen event loop.
+//!
+//! The public API mirrors `eframe`'s shape (`App`, `Frame`, `NativeOptions`,
+//! `CreationContext`, `AppCreator`, `run_native`) so app code is portable
+//! between `eframe` on desktop and this runner on Tizen — apps depend on
+//! `tizen-eframe` (typically package-renamed to `eframe` in their
+//! `Cargo.toml`) and write standard eframe boilerplate.
 
 #![warn(missing_docs)]
 
@@ -115,16 +121,17 @@ pub struct CreationContext {
     pub pixels_per_point: f32,
 }
 
-/// App model for Tizen egui applications.
+/// App model mirroring `eframe::App`, backed by `tizen-window` +
+/// `tizen-egl` + `egui_glow` instead of winit/glutin.
 ///
-/// This is inspired by `eframe::App`, but backed by `tizen-window` and
-/// `tizen-egui` instead of winit/glutin.
+/// Apps that need the GL context for cleanup can clone the `Arc<glow::Context>`
+/// from [`CreationContext::gl`] during construction and use it from `on_exit`.
 pub trait App {
     /// Called each time the UI should repaint.
     fn update(&mut self, ctx: &egui::Context, frame: &mut Frame);
 
     /// Called once on shutdown after the final frame.
-    fn on_exit(&mut self, _gl: Option<&glow::Context>) {}
+    fn on_exit(&mut self) {}
 
     /// Background clear colour used before egui paints.
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -156,8 +163,8 @@ pub struct NativeOptions {
 impl Default for NativeOptions {
     fn default() -> Self {
         Self {
-            title: "tizen-egui".to_owned(),
-            app_id: "rust.tizen.egui".to_owned(),
+            title: "tizen-eframe".to_owned(),
+            app_id: "rust.tizen.eframe".to_owned(),
             size: (1920, 1080),
             pixels_per_point: 1.0,
             clear_color: [0.05, 0.05, 0.08, 1.0],
@@ -290,7 +297,7 @@ pub fn run_native(
         display.dispatch_pending(&mut window)?;
     }
 
-    app.on_exit(Some(egui.gl_context().as_ref()));
+    app.on_exit();
     egui.destroy();
     Ok(())
 }

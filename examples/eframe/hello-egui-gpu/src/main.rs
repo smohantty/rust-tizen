@@ -1,19 +1,18 @@
-//! egui hello-world on Tizen, GPU path.
+//! egui hello-world for Tizen written against the eframe app model.
 //!
-//! This example uses the app-facing `tizen-egui` runner. The runner owns
-//! the Tizen window, EGL/GLES setup, `egui_glow::Painter`, input
-//! conversion, repaint loop, and buffer swaps.
+//! On Tizen the `eframe` crate name in `Cargo.toml` is a package-rename of
+//! `tizen-eframe`. The Rust source is identical to a desktop eframe app.
 //!
 //! ## Cross-compile + run
 //!
 //! ```sh
-//! cd examples/hello-egui-gpu
+//! cd examples/eframe/hello-egui-gpu
 //! cargo tizen build --release
 //! # push the binary to the device, then on-device:
 //! XDG_RUNTIME_DIR=/run WAYLAND_DISPLAY=wayland-0 /tmp/hello-egui-gpu
 //! ```
 
-use tizen_egui::{egui, App, Frame, NativeOptions};
+use eframe::{egui, App, Frame, NativeOptions};
 
 struct HelloApp;
 
@@ -26,7 +25,7 @@ impl App for HelloApp {
             ui.label(format!("frame {}", frame.frame_nr()));
             ui.label(format!("elapsed {elapsed:.2}s"));
             ui.separator();
-            ui.label("rendered via tizen-egui + egui_glow.");
+            ui.label("rendered via eframe (tizen-eframe + egui_glow).");
         });
 
         egui::Window::new("animation").show(ctx, |ui| {
@@ -48,7 +47,7 @@ fn main() -> std::process::ExitCode {
         ..Default::default()
     };
 
-    match tizen_egui::run_native(
+    match eframe::run_native(
         "hello-egui-gpu",
         options,
         Box::new(|_cc| Ok(Box::new(HelloApp))),

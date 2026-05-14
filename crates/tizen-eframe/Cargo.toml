@@ -1,5 +1,5 @@
 [package]
-name = "tizen-egui"
+name = "tizen-eframe"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,9 +7,9 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
-description = "egui integration for rust-tizen windows using EGL/GLES via egui_glow"
+description = "eframe-style egui runner for rust-tizen windows (EGL/GLES via egui_glow)"
 categories = ["gui", "rendering"]
-keywords = ["tizen", "egui", "egl", "gles", "wayland"]
+keywords = ["tizen", "eframe", "egui", "egl", "wayland"]
 readme = "README.md"
 
 [dependencies]
